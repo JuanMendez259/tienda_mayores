@@ -52,6 +52,10 @@ export interface Store {
   modules: StoreModules;
   /** Días de aviso de caducidad: 7, 15 o 30 (F-505). */
   expiry_alert_days: number;
+  /** Ancho del papel de la impresora térmica: 58 u 80 mm (F-301, 8.3). */
+  ticket_width_mm: number;
+  /** Prefijo de país para el enlace de WhatsApp (F-302, 8.4). */
+  whatsapp_country_code: string;
   created_at: string;
   updated_at: string;
 }
@@ -259,7 +263,7 @@ export interface ProductLot {
 type Insert<T, Optional extends keyof T> = Omit<T, Optional> & Partial<Pick<T, Optional>>;
 type Update<T> = Partial<T>;
 
-export type StoreInsert = Insert<Store, 'id' | 'timezone' | 'created_at' | 'updated_at' | 'logo_url' | 'ticket_footer' | 'font_size' | 'primary_color' | 'discount_requires_manager' | 'modules'>;
+export type StoreInsert = Insert<Store, 'id' | 'timezone' | 'created_at' | 'updated_at' | 'logo_url' | 'ticket_footer' | 'font_size' | 'primary_color' | 'discount_requires_manager' | 'modules' | 'expiry_alert_days' | 'ticket_width_mm' | 'whatsapp_country_code'>;
 export type StoreUpdate = Update<Store>;
 
 export type AppUserInsert = Insert<

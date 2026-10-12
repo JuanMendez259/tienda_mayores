@@ -7,6 +7,7 @@
  */
 import type { Category, Product, Store } from '../types/database';
 import type { ReportData } from '../data/repository';
+import { PAYMENT_METHOD_LABELS } from '../devices/payments';
 
 function cents(cents: number): string {
   return (cents / 100).toFixed(2);
@@ -20,13 +21,6 @@ function csvField(value: string | number | null | undefined): string {
 function csvRows(rows: (string | number | null | undefined)[][]): string {
   return rows.map((row) => row.map(csvField).join(',')).join('\n');
 }
-
-const METHOD_LABEL: Record<string, string> = {
-  cash: 'Efectivo',
-  card_clip: 'Tarjeta',
-  transfer: 'Transferencia',
-  other: 'Otro',
-};
 
 /** Reporte de ventas en CSV (F-605). */
 export function reportToCsv(report: ReportData): string {
@@ -47,7 +41,7 @@ export function reportToCsv(report: ReportData): string {
   lines.push(['Formas de pago']);
   lines.push(['Método', 'Importe (MXN)', 'Cantidad']);
   for (const method of report.byPaymentMethod) {
-    lines.push([METHOD_LABEL[method.method] ?? method.method, cents(method.totalCents), String(method.count)]);
+    lines.push([PAYMENT_METHOD_LABELS[method.method], cents(method.totalCents), String(method.count)]);
   }
   lines.push([]);
   lines.push(['Productos más vendidos']);
@@ -111,7 +105,7 @@ export function printReport(store: Store, report: ReportData): void {
   const methods = report.byPaymentMethod
     .map(
       (m) =>
-        `<tr><td>${METHOD_LABEL[m.method] ?? m.method}</td><td>$${cents(m.totalCents)}</td><td>${m.count}</td></tr>`,
+        `<tr><td>${PAYMENT_METHOD_LABELS[m.method]}</td><td>$${cents(m.totalCents)}</td><td>${m.count}</td></tr>`,
     )
     .join('');
   const top = report.topProducts

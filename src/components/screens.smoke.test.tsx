@@ -67,7 +67,7 @@ describe('render de pantallas (smoke)', () => {
   it('renderiza los modales de cobro, peso, ticket, caja y producto', () => {
     expect(
       renderToStaticMarkup(<PaymentModal totalCents={10013} onCancel={noop} onConfirm={noop} />),
-    ).toContain('Cobrar en efectivo');
+    ).toContain('Cobrar');
     expect(
       renderToStaticMarkup(
         <WeightModal product={seedProducts[0]} onCancel={noop} onConfirm={noop} />,

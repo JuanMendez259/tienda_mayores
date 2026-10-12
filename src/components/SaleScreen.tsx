@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { AppUser, CashSession, Category, Product, Promotion, SaleItem, Store } from '../types/database';
 import { repository, isRemoteConfigured } from '../data';
-import type { SaleWithItems } from '../data';
+import type { PaymentInput, SaleWithItems } from '../data';
 import {
   addMeasure,
   addPiece,
@@ -23,6 +23,8 @@ import { uid } from '../lib/uid';
 import { beep } from '../lib/sound';
 import { enqueueSale } from '../lib/offlineQueue';
 import { logError } from '../lib/errorLog';
+import { useBarcodeScanner } from '../devices/barcode';
+import { PAYMENT_METHOD_LABELS } from '../devices/payments';
 import { ProductGrid } from './ProductGrid';
 import { Cart } from './Cart';
 import { WeightModal } from './WeightModal';
@@ -69,6 +71,7 @@ export function SaleScreen({
   const [ticket, setTicket] = useState<TicketData | null>(null);
   const [askCancel, setAskCancel] = useState(false);
   const [productFormOpen, setProductFormOpen] = useState(false);
+  const [newBarcode, setNewBarcode] = useState('');
   const [held, setHeld] = useState<SaleWithItems[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -103,6 +106,11 @@ export function SaleScreen({
     return () => clearTimeout(timer);
   }, [message]);
 
+  // Escáner USB activo solo cuando no hay otro modal abierto (F-102).
+  const scanningEnabled =
+    !paymentOpen && !weightFor && !productFormOpen && !discountOpen && !heldOpen && !helpOpen && !askCancel && ticket === null;
+  useBarcodeScanner(handleScan, scanningEnabled);
+
   function mutate(next: CartItem[]) {
     setHistory((prev) => [...prev, cart]);
     setCart(next);
@@ -123,6 +131,19 @@ export function SaleScreen({
       setWeightFor({ product });
     }
     beep(880, 70);
+  }
+
+  /** Escáner USB (F-102): agrega el producto o abre el alta con el código. */
+  function handleScan(code: string) {
+    const product = products.find((item) => item.barcode === code);
+    if (product) {
+      pick(product);
+      setMessage(`${product.name} agregado.`);
+      return;
+    }
+    setNewBarcode(code);
+    setProductFormOpen(true);
+    setMessage('Código no registrado: captura el producto nuevo.');
   }
 
   function confirmWeight(measure: number) {
@@ -171,7 +192,13 @@ export function SaleScreen({
     }));
   }
 
-  function ticketFor(cents: number, received: number, number: number, pending = false): TicketData {
+  function ticketFor(
+    cents: number,
+    received: number,
+    number: number,
+    paymentsLabel?: string,
+    pending = false,
+  ): TicketData {
     return {
       number,
       pending,
@@ -188,9 +215,17 @@ export function SaleScreen({
       subtotalCents: subtotal,
       discountCents: discountTotal,
       totalCents: cents,
+      paymentsLabel,
       receivedCents: received,
       changeCents: changeDue(cents, received),
     };
+  }
+
+  /** Texto de las formas de pago usadas (F-204). */
+  function paymentsLabelFor(payments: PaymentInput[]): string {
+    return payments
+      .map((payment) => `${PAYMENT_METHOD_LABELS[payment.method]} ${formatMXN(payment.amount_cents)}`)
+      .join(' + ');
   }
 
   function finishSale(data: TicketData) {
@@ -253,9 +288,10 @@ export function SaleScreen({
     setMessage('Venta cancelada.');
   }
 
-  async function checkout(received: number) {
+  async function checkout(payments: PaymentInput[], received: number) {
     if (busy) return;
     setBusy(true);
+    const paymentsLabel = paymentsLabelFor(payments);
     const input = {
       store_id: store.id,
       user_id: user.id,
@@ -264,14 +300,14 @@ export function SaleScreen({
       discount_cents: discountTotal,
       total_cents: total,
       lines: buildLines(),
-      payments: [{ method: 'cash' as const, amount_cents: total, reference: null }],
+      payments,
     };
 
     // Sin conexión: guardar la venta y enviarla al reconectar (F-704 / sección 9).
     if (isRemoteConfigured && !navigator.onLine) {
       await enqueueSale(input);
       setBusy(false);
-      finishSale(ticketFor(total, received, 0, true));
+      finishSale(ticketFor(total, received, 0, paymentsLabel, true));
       setMessage('Venta guardada sin conexión; se enviará al reconectar.');
       return;
     }
@@ -280,7 +316,7 @@ export function SaleScreen({
       const result = await repository.checkout(input);
       setBusy(false);
       finishSale({
-        ...ticketFor(total, received, result.sale.number),
+        ...ticketFor(total, received, result.sale.number, paymentsLabel),
         dateIso: result.sale.paid_at ?? result.sale.created_at,
       });
     } catch (cause) {
@@ -336,7 +372,10 @@ export function SaleScreen({
             products={products}
             categories={categories}
             onPick={pick}
-            onNewProduct={() => setProductFormOpen(true)}
+            onNewProduct={() => {
+              setNewBarcode('');
+              setProductFormOpen(true);
+            }}
           />
         </main>
 
@@ -466,9 +505,14 @@ export function SaleScreen({
           categories={categories}
           storeId={store.id}
           userId={user.id}
-          onClose={() => setProductFormOpen(false)}
+          initialBarcode={newBarcode}
+          onClose={() => {
+            setProductFormOpen(false);
+            setNewBarcode('');
+          }}
           onSaved={(product) => {
             setProductFormOpen(false);
+            setNewBarcode('');
             onRefreshProducts();
             setMessage(`Producto "${product.name}" guardado.`);
           }}

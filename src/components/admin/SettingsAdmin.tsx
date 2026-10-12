@@ -35,6 +35,8 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
   const [discountRequiresManager, setDiscountRequiresManager] = useState(store.discount_requires_manager);
   const [modules, setModules] = useState<StoreModules>(store.modules);
   const [expiryDays, setExpiryDays] = useState(store.expiry_alert_days);
+  const [ticketWidth, setTicketWidth] = useState(store.ticket_width_mm);
+  const [whatsappCode, setWhatsappCode] = useState(store.whatsapp_country_code);
   const [capturaOpen, setCapturaOpen] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -51,6 +53,8 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
       discount_requires_manager: discountRequiresManager,
       modules,
       expiry_alert_days: expiryDays,
+      ticket_width_mm: ticketWidth,
+      whatsapp_country_code: whatsappCode.trim() || '+52',
     });
     setSaved(true);
     onSaved(updated);
@@ -69,6 +73,31 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
         <div className="mb-3">
           <label className={label} htmlFor="st-footer">Pie del ticket</label>
           <input id="st-footer" value={ticketFooter} onChange={(e) => setTicketFooter(e.target.value)} className={field} />
+        </div>
+
+        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className={label} htmlFor="st-width">Ancho del papel (impresora)</label>
+            <select
+              id="st-width"
+              value={ticketWidth}
+              onChange={(e) => setTicketWidth(Number(e.target.value))}
+              className={field}
+            >
+              <option value={58}>58 mm</option>
+              <option value={80}>80 mm</option>
+            </select>
+          </div>
+          <div>
+            <label className={label} htmlFor="st-wa">Código de país (WhatsApp)</label>
+            <input
+              id="st-wa"
+              value={whatsappCode}
+              onChange={(e) => setWhatsappCode(e.target.value)}
+              placeholder="+52"
+              className={field}
+            />
+          </div>
         </div>
 
         <div className="mb-3 grid gap-3 sm:grid-cols-2">

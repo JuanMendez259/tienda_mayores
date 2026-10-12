@@ -5,6 +5,9 @@ import { clearErrors, listErrors, type ErrorLogEntry } from '../../lib/errorLog'
 import { pendingCount } from '../../lib/offlineQueue';
 import { flushPendingSales } from '../../lib/sync';
 import { catalogToCsv, downloadText } from '../../lib/reportExport';
+import { getLastScan, subscribeDeviceStatus } from '../../devices/deviceStatus';
+import { ticketPrinter } from '../../devices/printer';
+import { CameraCapture } from '../CameraCapture';
 
 interface DiagnosticsAdminProps {
   store: Store;
@@ -19,6 +22,9 @@ export function DiagnosticsAdmin({ store, products, categories }: DiagnosticsAdm
   const [errors, setErrors] = useState<ErrorLogEntry[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [lastScan, setLastScan] = useState(getLastScan());
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [cameraShot, setCameraShot] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setPending(await pendingCount());
@@ -39,6 +45,8 @@ export function DiagnosticsAdmin({ store, products, categories }: DiagnosticsAdm
       window.removeEventListener('offline', goOffline);
     };
   }, []);
+
+  useEffect(() => subscribeDeviceStatus(() => setLastScan(getLastScan())), []);
 
   async function syncNow() {
     setBusy(true);
@@ -134,6 +142,61 @@ export function DiagnosticsAdmin({ store, products, categories }: DiagnosticsAdm
           </ul>
         )}
       </section>
+
+      <section className="card p-4 lg:col-span-2">
+        <h3 className="title mb-3 text-2xl">Dispositivos</h3>
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="mb-1 text-xl font-bold">🔎 Escáner</p>
+            {lastScan ? (
+              <>
+                <p className="text-lg">
+                  Último código: <span className="font-extrabold">{lastScan.code}</span>
+                </p>
+                <p className="text-base text-slate-500">
+                  {new Date(lastScan.at).toLocaleTimeString('es-MX')}
+                </p>
+              </>
+            ) : (
+              <p className="text-lg text-slate-500">Escanea un producto de prueba para comprobarlo.</p>
+            )}
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="mb-1 text-xl font-bold">🖨 Impresora</p>
+            <p className="mb-3 text-lg">Papel de {store.ticket_width_mm} mm</p>
+            <button
+              type="button"
+              onClick={() => ticketPrinter.printTest(store)}
+              className="btn btn-neutral px-4 py-3 text-lg"
+            >
+              Imprimir prueba
+            </button>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="mb-1 text-xl font-bold">📷 Cámara</p>
+            {cameraShot ? (
+              <img
+                src={cameraShot}
+                alt="Prueba de cámara"
+                className="mb-3 h-24 w-24 rounded-xl object-cover"
+              />
+            ) : (
+              <p className="mb-3 text-lg text-slate-500">Aún sin prueba.</p>
+            )}
+            <button
+              type="button"
+              onClick={() => setCameraOpen(true)}
+              className="btn btn-neutral px-4 py-3 text-lg"
+            >
+              Probar cámara
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {cameraOpen && (
+        <CameraCapture onCapture={(dataUrl) => setCameraShot(dataUrl)} onClose={() => setCameraOpen(false)} />
+      )}
     </div>
   );
 }

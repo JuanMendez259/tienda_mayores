@@ -498,6 +498,11 @@ function createLocalRepository(): Repository {
       if (existing) {
         return { sale: clone(existing), items: clone(itemsBySale.get(existing.id) ?? []) };
       }
+      // Pagos combinados (F-204): la suma de los pagos debe igualar el total.
+      const paidCents = input.payments.reduce((acc, payment) => acc + payment.amount_cents, 0);
+      if (paidCents !== input.total_cents) {
+        throw new Error('La suma de los pagos no coincide con el total de la venta.');
+      }
       const base: Omit<Sale, 'id' | 'number' | 'created_at'> = {
         store_id: input.store_id,
         user_id: input.user_id,

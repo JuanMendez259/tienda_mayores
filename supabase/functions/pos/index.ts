@@ -183,6 +183,16 @@ Deno.serve(async (request) => {
           return json({ sale: existing, items: existingItems ?? [] });
         }
 
+        // Pagos combinados (F-204): la suma de los pagos debe igualar el total.
+        const paidCents = payments.reduce(
+          (acc, payment) => acc + Number(payment.amount_cents ?? 0),
+          0,
+        );
+        const totalCents = Number(sale.total_cents ?? 0);
+        if (paidCents !== totalCents) {
+          return fail('La suma de los pagos no coincide con el total de la venta.');
+        }
+
         const { data: created, error: saleError } = await db
           .from('sale')
           .insert({ ...sale, status: 'paid', paid_at: new Date().toISOString() })

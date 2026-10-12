@@ -1,10 +1,35 @@
-# POS Abarrotes — Punto de venta (Fases 1 a 3)
+# POS Abarrotes — Punto de venta (Fases 1 a 4)
 
 Aplicación web de punto de venta para una tienda de abarrotes en México, con UX pensada para
 personas de la tercera edad. Stack: **React + Vite + TypeScript + Tailwind CSS v4 + Supabase**.
 
-> Estado: **Fase 1 (Base)**, **Fase 2 (Operación)** y **Fase 3 (Control)** implementadas. Las
-> integraciones y hardware (sección 8 del SPEC) quedan para la Fase 4.
+> Estado: **Fases 1 (Base), 2 (Operación), 3 (Control) y 4 (Integraciones y hardware)
+> implementadas.** Las integraciones Clip/Mercado Pago y la impresora usan **flujos manuales**
+> documentados detrás de interfaces, para sustituirlos por las APIs reales cuando haya
+> credenciales y modelos de terminal.
+
+## Novedades de la Fase 4 (Integraciones y hardware)
+
+- **F-102 / 8.5 — Escáner USB:** el sistema escucha el teclado y distingue un escaneo de un
+  tecleo humano por la velocidad; al leer un código agrega el producto o abre **Nuevo producto**
+  con el código ya lleno. No roba el foco de los campos de texto.
+- **F-301 / 8.3 — Impresora térmica:** botón **🖨 Imprimir ticket** en el ticket, con hoja de
+  impresión para papel de **58 mm u 80 mm** (configurable en **Menú → Configuración**). En
+  **Diagnóstico** hay **Imprimir prueba**.
+- **F-406 — Etiquetas:** botón **🖨 Etiquetas** en **Menú → Productos**, imprime nombre, precio y
+  **QR** de los productos filtrados.
+- **F-202 / 8.1 — Clip:** flujo manual (**PaymentProvider**): se cobra en la terminal y se
+  registra una **referencia** opcional (folio o últimos 4 dígitos).
+- **F-203 / 8.2 — Mercado Pago:** flujo manual por **QR** con confirmación y referencia.
+- **F-204 — Pagos combinados:** el cobro acepta **efectivo + Clip + Mercado Pago** en la misma
+  venta; el efectivo calcula el cambio y el servidor valida que la suma de los pagos iguale el
+  total.
+- **F-302 / 8.4 — Ticket por WhatsApp:** botón para enviar el ticket como texto por `wa.me`; se
+  asume el **código de país** de la tienda (`+52`) si no se escribe.
+- **F-403 / 8.7 — Cámara:** botón **📸 Usar cámara** en el alta de producto (`getUserMedia`),
+  además de elegir archivo.
+- **F-704 (hardware):** **Menú → Diagnóstico → Dispositivos** muestra el último código del
+  escáner, prueba de impresora y prueba de cámara.
 
 ## Novedades de la Fase 3 (Control)
 
@@ -69,8 +94,8 @@ ver el ticket → **Caja** para el corte. Con un usuario **Dueño** o **Encargad
 ### Con Supabase (Opción A)
 
 1. Crea un proyecto en Supabase y aplica las migraciones
-   `supabase/migrations/0001_init_phase1.sql`, `0002_init_phase2.sql` y `0003_init_phase3.sql`
-   (SQL Editor o `supabase db push`).
+   `supabase/migrations/0001_init_phase1.sql`, `0002_init_phase2.sql`, `0003_init_phase3.sql` y
+   `0004_init_phase4.sql` (SQL Editor o `supabase db push`).
 2. Genera un PIN para cada usuario con `crypt('1234', gen_salt('bf'))` en la columna `pin_hash`.
 3. Copia `.env.example` a `.env.local` y define `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
 4. Despliega la Edge Function: `supabase functions deploy pos`.
@@ -84,14 +109,15 @@ En la Opción A el cliente **nunca** accede a las tablas (RLS sin políticas). U
 ```
 src/
   lib/          dinero, peso, carrito, inventario, imagen, sonido, cola offline, errores,
-                exportación de reportes (+ pruebas)
+                exportación de reportes, ticket de WhatsApp (+ pruebas)
   data/         contrato Repository, semilla, repositorio local y remoto (Supabase)
-  components/   pantallas y piezas de UI (login, venta, carrito, cobros, caja, ayuda…)
-  types/        types/database.ts (espejo del esquema)
+  devices/      escáner USB, impresora térmica/etiquetas, pagos (Clip/Mercado Pago)
+  components/   pantallas y piezas de UI (login, venta, carrito, cobros, caja, cámara, ayuda…)
+  types/        database.ts (espejo del esquema)
 supabase/
-  migrations/   0001_init_phase1.sql, 0002_init_phase2.sql, 0003_init_phase3.sql
+  migrations/   0001_init_phase1.sql … 0004_init_phase4.sql
   functions/    pos/index.ts (Edge Function, Opción A)
-docs/           SPEC-punto-de-venta.md y DISENO-base-datos-fase1/2/3.md
+docs/           SPEC-punto-de-venta.md y DISENO-base-datos-fase1/2/3/4.md
 ```
 
 ## Reglas de datos [Requisito]
@@ -121,6 +147,14 @@ F-112, F-404, F-408, F-502, F-503, F-506, F-606, F-702 y F-703. Ver
 F-407, F-504, F-505, F-604, F-605, F-705, F-706, F-707 y la parte de internet/sincronización de
 F-704, junto con la sección 9 (modo offline). Ver `docs/DISENO-base-datos-fase3.md`.
 
+## Requisitos de la Fase 4 cubiertos
+
+F-102, F-202, F-203, F-204, F-301, F-302, F-403, F-406 y la parte de hardware (escáner,
+impresora y cámara) de F-704, junto con la sección 8. Clip y Mercado Pago se resuelven con
+**flujos manuales** detrás de `PaymentProvider`; la impresión usa el diálogo del navegador detrás
+de `TicketPrinter`; el escáner se lee como teclado vía `BarcodeInput`. Ver
+`docs/DISENO-base-datos-fase4.md`.
+
 ## Supuestos (documentados según SPEC §12)
 
 1. Una sola tienda y una sola caja; el modelo ya incluye `store_id`.
@@ -133,7 +167,8 @@ F-704, junto con la sección 9 (modo offline). Ver `docs/DISENO-base-datos-fase3
    unidades base (piezas / gramos / mililitros) para el inventario.
 7. Las existencias por **lote/caducidad** y las promociones automáticas (F-407) se implementan en
    la Fase 3; en la Fase 2 la caducidad se registraba como dato informativo en la compra.
-8. La impresión/WhatsApp del ticket, el escáner USB y las terminales de pago son Fase 4; los
-   reportes ya están en la Fase 3.
+8. La impresión térmica usa el diálogo del navegador (58/80 mm); la impresión directa ESC/POS
+   queda como mejora futura. Clip y Mercado Pago usan flujo manual con referencia detrás de
+   `PaymentProvider`, listos para la API real cuando haya credenciales y modelo de terminal.
 9. Las promociones (F-407) aplican solo a productos por **pieza**; el descuento se refleja en
    `sale_item.discount_cents`.

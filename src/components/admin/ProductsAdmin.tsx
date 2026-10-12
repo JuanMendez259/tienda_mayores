@@ -4,6 +4,7 @@ import { repository } from '../../data';
 import { formatMXN } from '../../lib/money';
 import { formatStock, unitLabel } from '../../lib/weight';
 import { parseProductsCsv, productsCsvTemplate } from '../../lib/csv';
+import { printLabels } from '../../devices/printer';
 import { ProductFormModal } from '../ProductFormModal';
 import { ConfirmDialog } from '../ConfirmDialog';
 
@@ -92,6 +93,19 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
     setReport('Producto desactivado.');
   }
 
+  /** Imprime etiquetas con precio y QR de los productos filtrados (F-406). */
+  async function printPriceTags() {
+    const items = filtered.slice(0, 60).map((product) => ({
+      name: product.name,
+      code: product.barcode ?? '',
+      priceLabel: `${formatMXN(product.price_cents)}/${unitLabel(product.sale_unit)}`,
+    }));
+    if (items.length === 0) return;
+    setReport(`Preparando ${items.length} etiqueta(s)…`);
+    await printLabels(items, store.name, store.ticket_width_mm);
+    setReport(`Etiquetas listas (${items.length}).`);
+  }
+
   return (
     <div>
       <div className="mb-4 flex flex-wrap gap-2">
@@ -118,6 +132,9 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
           Importar CSV
           <input ref={fileRef} type="file" accept=".csv,text/csv" onChange={importCsv} className="hidden" />
         </label>
+        <button type="button" onClick={() => void printPriceTags()} className="btn btn-neutral px-5 py-4 text-lg">
+          🖨 Etiquetas
+        </button>
       </div>
 
       {report && (

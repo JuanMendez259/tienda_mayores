@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import type { Store } from '../types/database';
 import { formatMXN } from '../lib/money';
+import { ticketPrinter, type PrintableTicket } from '../devices/printer';
+import { normalizePhone, ticketToText, whatsappUrl } from '../lib/ticket';
 
 export interface TicketLine {
   name: string;
@@ -18,6 +21,8 @@ export interface TicketData {
   subtotalCents: number;
   discountCents?: number;
   totalCents: number;
+  /** Métodos de pago con importe (F-204). */
+  paymentsLabel?: string;
   receivedCents: number;
   changeCents: number;
 }
@@ -29,10 +34,38 @@ interface TicketModalProps {
   onNewSale: () => void;
 }
 
-/** Ticket en pantalla al cobrar (F-303). Impresión y WhatsApp son Fase 4. */
+/** Ticket en pantalla al cobrar (F-303) con impresión (F-301) y WhatsApp (F-302). */
 export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) {
+  const [phone, setPhone] = useState('');
+  const [notice, setNotice] = useState<string | null>(null);
+
   if (!open || !data) return null;
   const fecha = new Date(data.dateIso).toLocaleString('es-MX');
+
+  const printable: PrintableTicket = {
+    storeName: store.name,
+    storeFooter: store.ticket_footer,
+    number: data.number,
+    pending: data.pending,
+    dateIso: data.dateIso,
+    lines: data.lines,
+    subtotalCents: data.subtotalCents,
+    discountCents: data.discountCents ?? 0,
+    totalCents: data.totalCents,
+    paymentsLabel: data.paymentsLabel,
+    receivedCents: data.receivedCents,
+    changeCents: data.changeCents,
+  };
+
+  function sendWhatsapp() {
+    const number = normalizePhone(phone, store.whatsapp_country_code);
+    if (number.length < 10) {
+      setNotice('Escribe un número de al menos 10 dígitos.');
+      return;
+    }
+    setNotice(null);
+    window.open(whatsappUrl(number, ticketToText(printable)), '_blank');
+  }
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
@@ -86,8 +119,14 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
             <span>Total</span>
             <span>{formatMXN(data.totalCents)}</span>
           </div>
+          {data.paymentsLabel && (
+            <div className="flex justify-between">
+              <span className="text-slate-600">Pago</span>
+              <span className="font-bold">{data.paymentsLabel}</span>
+            </div>
+          )}
           <div className="flex justify-between">
-            <span className="text-slate-600">Efectivo</span>
+            <span className="text-slate-600">Recibí</span>
             <span className="font-bold">{formatMXN(data.receivedCents)}</span>
           </div>
           <div className="flex justify-between">
@@ -101,6 +140,36 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
             {store.ticket_footer}
           </p>
         )}
+
+        <button
+          type="button"
+          onClick={() => ticketPrinter.printTicket(printable, store.ticket_width_mm)}
+          className="btn btn-neutral mt-6 w-full py-4 text-xl"
+        >
+          🖨 Imprimir ticket
+        </button>
+
+        <div className="mt-3">
+          <label className="mb-1 block text-lg font-semibold" htmlFor="ticket-phone">
+            Enviar por WhatsApp
+          </label>
+          <div className="flex gap-2">
+            <input
+              id="ticket-phone"
+              value={phone}
+              onChange={(event) => setPhone(event.target.value)}
+              inputMode="tel"
+              placeholder="10 dígitos"
+              className="min-h-[56px] flex-1 rounded-2xl border-2 border-slate-300 px-4 text-xl"
+            />
+            <button type="button" onClick={sendWhatsapp} className="btn btn-neutral px-5 py-4 text-lg">
+              Enviar
+            </button>
+          </div>
+          {notice && (
+            <p className="mt-2 rounded-xl bg-amber-100 p-2 text-base font-semibold text-amber-900">{notice}</p>
+          )}
+        </div>
 
         <button type="button" onClick={onNewSale} className="btn btn-primary mt-6 w-full py-5 text-2xl text-white">
           Nueva venta

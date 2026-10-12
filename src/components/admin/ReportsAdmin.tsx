@@ -4,6 +4,7 @@ import { repository } from '../../data';
 import type { ReportData } from '../../data/repository';
 import { formatMXN } from '../../lib/money';
 import { downloadText, printReport, reportToCsv } from '../../lib/reportExport';
+import { PAYMENT_METHOD_LABELS } from '../../devices/payments';
 
 interface ReportsAdminProps {
   store: Store;
@@ -15,13 +16,6 @@ const PRESET_LABEL: Record<Preset, string> = {
   hoy: 'Hoy',
   semana: 'Últimos 7 días',
   mes: 'Últimos 30 días',
-};
-
-const METHOD_LABEL: Record<string, string> = {
-  cash: 'Efectivo',
-  card_clip: 'Tarjeta',
-  transfer: 'Transferencia',
-  other: 'Otro',
 };
 
 function rangeFor(preset: Preset): { from: string; to: string } {
@@ -132,7 +126,7 @@ export function ReportsAdmin({ store }: ReportsAdminProps) {
               <ul className="space-y-2">
                 {report.byPaymentMethod.map((method) => (
                   <li key={method.method} className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                    <span className="text-lg font-semibold">{METHOD_LABEL[method.method] ?? method.method}</span>
+                    <span className="text-lg font-semibold">{PAYMENT_METHOD_LABELS[method.method]}</span>
                     <span className="text-lg font-bold">{formatMXN(method.totalCents)}</span>
                   </li>
                 ))}

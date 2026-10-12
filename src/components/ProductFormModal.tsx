@@ -4,6 +4,7 @@ import { repository } from '../data';
 import { parseAmountToCents } from '../lib/money';
 import { fileToDataUrl } from '../lib/image';
 import { generateBarcode } from '../lib/csv';
+import { CameraCapture } from './CameraCapture';
 
 interface ProductFormModalProps {
   categories: Category[];
@@ -11,6 +12,8 @@ interface ProductFormModalProps {
   userId: string;
   /** Si se pasa, el formulario edita ese producto (F-401). */
   product?: Product | null;
+  /** Código leído con el escáner cuando el producto aún no existe (F-102). */
+  initialBarcode?: string;
   onClose: () => void;
   onSaved: (product: Product) => void;
 }
@@ -21,6 +24,7 @@ export function ProductFormModal({
   storeId,
   userId,
   product = null,
+  initialBarcode = '',
   onClose,
   onSaved,
 }: ProductFormModalProps) {
@@ -31,8 +35,9 @@ export function ProductFormModal({
   const [cost, setCost] = useState(product && product.cost_cents ? (product.cost_cents / 100).toFixed(2) : '');
   const [stock, setStock] = useState(product ? String(product.stock_qty) : '0');
   const [lowStock, setLowStock] = useState(product ? String(product.low_stock_threshold) : '3');
-  const [barcode, setBarcode] = useState(product?.barcode ?? '');
+  const [barcode, setBarcode] = useState(product?.barcode ?? initialBarcode);
   const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -93,16 +98,21 @@ export function ProductFormModal({
               📷
             </div>
           )}
-          <label className="btn btn-neutral cursor-pointer px-5 py-4 text-lg">
-            Tomar o elegir foto
-            <input
-              type="file"
-              accept="image/*"
-              capture="environment"
-              onChange={pickImage}
-              className="hidden"
-            />
-          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setCameraOpen(true)} className="btn btn-neutral px-5 py-4 text-lg">
+              📸 Usar cámara
+            </button>
+            <label className="btn btn-neutral cursor-pointer px-5 py-4 text-lg">
+              Elegir archivo
+              <input
+                type="file"
+                accept="image/*"
+                capture="environment"
+                onChange={pickImage}
+                className="hidden"
+              />
+            </label>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -178,6 +188,10 @@ export function ProductFormModal({
           </button>
         </div>
       </div>
+
+      {cameraOpen && (
+        <CameraCapture onCapture={(dataUrl) => setImageUrl(dataUrl)} onClose={() => setCameraOpen(false)} />
+      )}
     </div>
   );
 }

@@ -30,6 +30,8 @@ export const seedStore: Store = {
     suppliers: true,
   },
   expiry_alert_days: 15,
+  ticket_width_mm: 80,
+  whatsapp_country_code: '+52',
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
