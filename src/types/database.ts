@@ -24,6 +24,17 @@ export type SaleStatus = 'open' | 'held' | 'paid' | 'cancelled';
 export type StockMovementType = 'sale' | 'purchase' | 'adjustment' | 'waste' | 'return';
 export type PaymentMethod = 'cash' | 'card_clip' | 'mercadopago_qr' | 'mercadopago_terminal';
 export type CashMovementType = 'withdrawal' | 'deposit';
+export type FontSize = 'normal' | 'grande' | 'muy_grande';
+
+/** Secciones que el dueño puede mostrar u ocultar (F-703). */
+export interface StoreModules {
+  discounts: boolean;
+  inventory: boolean;
+  movements: boolean;
+  photos: boolean;
+  purchases: boolean;
+  suppliers: boolean;
+}
 
 // ------------------------------------------------------------
 // Filas (Row)
@@ -34,6 +45,10 @@ export interface Store {
   logo_url: string | null;
   timezone: string; // default 'America/Mexico_City'
   ticket_footer: string | null;
+  font_size: FontSize;
+  primary_color: string;
+  discount_requires_manager: boolean;
+  modules: StoreModules;
   created_at: string;
   updated_at: string;
 }
@@ -125,6 +140,8 @@ export interface SaleItem {
   qty: number;
   unit_price_cents: Cents;
   line_total_cents: Cents;
+  /** Descuento aplicado a este renglón (F-112). */
+  discount_cents: Cents;
   /** Gramos (weight) o mililitros (volume); null en 'piece'. */
   weight_grams: Grams | Milliliters | null;
 }
@@ -171,6 +188,39 @@ export interface AuditLog {
   created_at: string;
 }
 
+export interface Supplier {
+  id: string;
+  store_id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Purchase {
+  id: string;
+  store_id: string;
+  supplier_id: string | null;
+  user_id: string | null;
+  total_cents: Cents;
+  invoice_ref: string | null;
+  invoice_file_url: string | null;
+  created_at: string;
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchase_id: string;
+  product_id: string;
+  /** Unidades base: piezas / gramos / mililitros. */
+  qty: number;
+  unit_cost_cents: Cents;
+  /** Caducidad opcional en formato YYYY-MM-DD. */
+  expires_on: string | null;
+}
+
 // ------------------------------------------------------------
 // Tipos Insert / Update
 // Columnas con default o generadas por la BD son opcionales al insertar.
@@ -178,7 +228,7 @@ export interface AuditLog {
 type Insert<T, Optional extends keyof T> = Omit<T, Optional> & Partial<Pick<T, Optional>>;
 type Update<T> = Partial<T>;
 
-export type StoreInsert = Insert<Store, 'id' | 'timezone' | 'created_at' | 'updated_at' | 'logo_url' | 'ticket_footer'>;
+export type StoreInsert = Insert<Store, 'id' | 'timezone' | 'created_at' | 'updated_at' | 'logo_url' | 'ticket_footer' | 'font_size' | 'primary_color' | 'discount_requires_manager' | 'modules'>;
 export type StoreUpdate = Update<Store>;
 
 export type AppUserInsert = Insert<
@@ -208,7 +258,7 @@ export type SaleInsert = Insert<
 >;
 export type SaleUpdate = Update<Sale>;
 
-export type SaleItemInsert = Insert<SaleItem, 'id' | 'qty' | 'weight_grams'>;
+export type SaleItemInsert = Insert<SaleItem, 'id' | 'qty' | 'discount_cents' | 'weight_grams'>;
 export type SaleItemUpdate = Update<SaleItem>;
 
 export type PaymentInsert = Insert<Payment, 'id' | 'created_at' | 'reference'>;
@@ -226,6 +276,15 @@ export type CashMovementUpdate = Update<CashMovement>;
 export type AuditLogInsert = Insert<AuditLog, 'id' | 'created_at' | 'store_id' | 'user_id' | 'entity_id' | 'before' | 'after'>;
 export type AuditLogUpdate = Update<AuditLog>;
 
+export type SupplierInsert = Insert<Supplier, 'id' | 'active' | 'created_at' | 'updated_at' | 'phone' | 'notes'>;
+export type SupplierUpdate = Update<Supplier>;
+
+export type PurchaseInsert = Insert<Purchase, 'id' | 'user_id' | 'total_cents' | 'invoice_ref' | 'invoice_file_url' | 'created_at' | 'supplier_id'>;
+export type PurchaseUpdate = Update<Purchase>;
+
+export type PurchaseItemInsert = Insert<PurchaseItem, 'id' | 'unit_cost_cents' | 'expires_on'>;
+export type PurchaseItemUpdate = Update<PurchaseItem>;
+
 /** Mapa de tablas -> Row/Insert/Update (para tipar el cliente de Supabase). */
 export interface Database {
   public: {
@@ -241,6 +300,9 @@ export interface Database {
       cash_session:   { Row: CashSession;   Insert: CashSessionInsert;   Update: CashSessionUpdate };
       cash_movement:  { Row: CashMovement;  Insert: CashMovementInsert;  Update: CashMovementUpdate };
       audit_log:      { Row: AuditLog;      Insert: AuditLogInsert;      Update: AuditLogUpdate };
+      supplier:       { Row: Supplier;      Insert: SupplierInsert;      Update: SupplierUpdate };
+      purchase:       { Row: Purchase;      Insert: PurchaseInsert;      Update: PurchaseUpdate };
+      purchase_item:  { Row: PurchaseItem;  Insert: PurchaseItemInsert;  Update: PurchaseItemUpdate };
     };
     Functions: {
       /** Valida el PIN y aplica el límite de intentos. Solo backend. */

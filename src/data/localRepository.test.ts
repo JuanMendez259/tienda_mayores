@@ -46,6 +46,7 @@ describe('flujo de caja y venta (repositorio local)', () => {
           qty: 2,
           unit_price_cents: 3200,
           line_total_cents: 6400,
+          discount_cents: 0,
           weight_grams: null,
         },
         {
@@ -55,6 +56,7 @@ describe('flujo de caja y venta (repositorio local)', () => {
           qty: 1,
           unit_price_cents: 2890,
           line_total_cents: 3613,
+          discount_cents: 0,
           weight_grams: 1250,
         },
       ],
@@ -99,6 +101,7 @@ describe('flujo de caja y venta (repositorio local)', () => {
           qty: 1,
           unit_price_cents: 1800,
           line_total_cents: 1800,
+          discount_cents: 0,
           weight_grams: null,
         },
       ],

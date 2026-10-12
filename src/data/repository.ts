@@ -7,10 +7,17 @@ import type {
   PaymentMethod,
   Product,
   ProductUpdate,
+  Purchase,
+  PurchaseItem,
   Sale,
   SaleItem,
   SaleUnit,
+  StockMovement,
+  StockMovementType,
   Store,
+  StoreUpdate,
+  Supplier,
+  SupplierUpdate,
 } from '../types/database';
 
 export interface SaleLineInput {
@@ -20,6 +27,7 @@ export interface SaleLineInput {
   qty: number;
   unit_price_cents: number;
   line_total_cents: number;
+  discount_cents: number;
   weight_grams: number | null;
 }
 
@@ -45,6 +53,7 @@ export interface HeldSaleInput {
   user_id: string;
   client_uuid: string;
   subtotal_cents: number;
+  discount_cents?: number;
   total_cents: number;
   lines: SaleLineInput[];
 }
@@ -68,6 +77,53 @@ export interface NewProductInput {
   stock_qty: number;
   low_stock_threshold: number;
   created_by: string | null;
+}
+
+export interface NewSupplierInput {
+  store_id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+}
+
+export interface PurchaseLineInput {
+  product_id: string;
+  /** Unidades base: piezas / gramos / mililitros. */
+  qty: number;
+  unit_cost_cents: number;
+  expires_on: string | null;
+}
+
+export interface CreatePurchaseInput {
+  store_id: string;
+  supplier_id: string | null;
+  user_id: string | null;
+  invoice_ref: string | null;
+  invoice_file_url: string | null;
+  items: PurchaseLineInput[];
+}
+
+export interface StockAdjustmentInput {
+  store_id: string;
+  product_id: string;
+  /** Delta con signo en unidades base (mermas y ajustes). */
+  delta: number;
+  type: Extract<StockMovementType, 'adjustment' | 'waste'>;
+  reason: string;
+  user_id: string;
+}
+
+export interface StockMovementFilter {
+  productId?: string;
+  type?: StockMovementType;
+  userId?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface PurchaseWithItems {
+  purchase: Purchase;
+  items: PurchaseItem[];
 }
 
 export interface OpenCashInput {
@@ -96,6 +152,18 @@ export interface Repository {
   listProducts(): Promise<Product[]>;
   createProduct(input: NewProductInput): Promise<Product>;
   updateProduct(id: string, patch: ProductUpdate): Promise<Product>;
+  deactivateProduct(id: string): Promise<void>;
+
+  listSuppliers(): Promise<Supplier[]>;
+  createSupplier(input: NewSupplierInput): Promise<Supplier>;
+  updateSupplier(id: string, patch: SupplierUpdate): Promise<Supplier>;
+  createPurchase(input: CreatePurchaseInput): Promise<PurchaseWithItems>;
+  listPurchases(): Promise<PurchaseWithItems[]>;
+
+  adjustStock(input: StockAdjustmentInput): Promise<StockMovement>;
+  listStockMovements(filter?: StockMovementFilter): Promise<StockMovement[]>;
+
+  updateStore(patch: StoreUpdate): Promise<Store>;
 
   checkout(input: CheckoutInput): Promise<SaleWithItems>;
   holdSale(input: HeldSaleInput): Promise<SaleWithItems>;

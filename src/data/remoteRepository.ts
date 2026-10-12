@@ -6,17 +6,26 @@ import type {
   Category,
   Product,
   ProductUpdate,
+  StockMovement,
   Store,
+  StoreUpdate,
+  Supplier,
+  SupplierUpdate,
 } from '../types/database';
 import { supabase } from './client';
 import type {
   CashSummary,
   CheckoutInput,
+  CreatePurchaseInput,
   HeldSaleInput,
   NewProductInput,
+  NewSupplierInput,
   OpenCashInput,
+  PurchaseWithItems,
   Repository,
   SaleWithItems,
+  StockAdjustmentInput,
+  StockMovementFilter,
 } from './repository';
 
 async function call<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
@@ -39,6 +48,20 @@ export const remoteRepository: Repository = {
   createProduct: (input: NewProductInput) => call<Product>('createProduct', { input }),
   updateProduct: (id: string, patch: ProductUpdate) =>
     call<Product>('updateProduct', { id, patch }),
+  deactivateProduct: (id: string) => call<void>('deactivateProduct', { id }),
+
+  listSuppliers: () => call<Supplier[]>('listSuppliers'),
+  createSupplier: (input: NewSupplierInput) => call<Supplier>('createSupplier', { input }),
+  updateSupplier: (id: string, patch: SupplierUpdate) =>
+    call<Supplier>('updateSupplier', { id, patch }),
+  createPurchase: (input: CreatePurchaseInput) => call<PurchaseWithItems>('createPurchase', { input }),
+  listPurchases: () => call<PurchaseWithItems[]>('listPurchases'),
+
+  adjustStock: (input: StockAdjustmentInput) => call<StockMovement>('adjustStock', { input }),
+  listStockMovements: (filter?: StockMovementFilter) =>
+    call<StockMovement[]>('listStockMovements', { filter: filter ?? {} }),
+
+  updateStore: (patch: StoreUpdate) => call<Store>('updateStore', { patch }),
 
   checkout: (input: CheckoutInput) => call<SaleWithItems>('checkout', { input }),
   holdSale: (input: HeldSaleInput) => call<SaleWithItems>('holdSale', { input }),

@@ -5,10 +5,13 @@ import type { SaleWithItems } from '../data';
 import {
   addMeasure,
   addPiece,
+  cartDiscountCents,
   cartItemCount,
+  cartSubtotalCents,
   cartTotalCents,
   changeQty,
   removeItem,
+  setLineDiscount,
   setMeasure,
   type CartItem,
 } from '../lib/cart';
@@ -23,6 +26,7 @@ import { PaymentModal } from './PaymentModal';
 import { TicketModal, type TicketData } from './TicketModal';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ProductFormModal } from './ProductFormModal';
+import { DiscountModal } from './DiscountModal';
 
 interface SaleScreenProps {
   store: Store;
@@ -32,6 +36,7 @@ interface SaleScreenProps {
   categories: Category[];
   onRefreshProducts: () => void;
   onOpenCash: () => void;
+  onOpenAdmin: () => void;
   onLogout: () => void;
 }
 
@@ -43,12 +48,15 @@ export function SaleScreen({
   categories,
   onRefreshProducts,
   onOpenCash,
+  onOpenAdmin,
   onLogout,
 }: SaleScreenProps) {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [history, setHistory] = useState<CartItem[][]>([]);
   const [weightFor, setWeightFor] = useState<{ product: Product; key?: string } | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [orderDiscountCents, setOrderDiscountCents] = useState(0);
   const [ticket, setTicket] = useState<TicketData | null>(null);
   const [askCancel, setAskCancel] = useState(false);
   const [productFormOpen, setProductFormOpen] = useState(false);
@@ -57,8 +65,12 @@ export function SaleScreen({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const total = cartTotalCents(cart);
+  const subtotal = cartSubtotalCents(cart);
+  const lineDiscount = cartDiscountCents(cart);
+  const discountTotal = lineDiscount + orderDiscountCents;
+  const total = Math.max(0, cartTotalCents(cart) - orderDiscountCents);
   const count = cartItemCount(cart);
+  const canManage = user.role !== 'cashier';
 
   useEffect(() => {
     if (!message) return;
@@ -99,6 +111,10 @@ export function SaleScreen({
     beep(880, 70);
   }
 
+  function applyLineDiscount(key: string, cents: number) {
+    mutate(setLineDiscount(cart, key, cents));
+  }
+
   function cartItemFromSaleLine(item: SaleItem): CartItem | null {
     const product = products.find((p) => p.id === item.product_id);
     if (!product) return null;
@@ -112,6 +128,7 @@ export function SaleScreen({
       qty: item.qty,
       measure: item.weight_grams,
       lineTotalCents: item.line_total_cents,
+      discountCents: item.discount_cents,
     };
   }
 
@@ -123,6 +140,7 @@ export function SaleScreen({
       qty: item.qty,
       unit_price_cents: item.unitPriceCents,
       line_total_cents: item.lineTotalCents,
+      discount_cents: item.discountCents,
       weight_grams: item.measure,
     }));
   }
@@ -134,13 +152,15 @@ export function SaleScreen({
       store_id: store.id,
       user_id: user.id,
       client_uuid: uid(),
-      subtotal_cents: total,
+      subtotal_cents: subtotal,
+      discount_cents: discountTotal,
       total_cents: total,
       lines: buildLines(),
     });
     setBusy(false);
     setCart([]);
     setHistory([]);
+    setOrderDiscountCents(0);
     setMessage('Venta guardada en espera.');
   }
 
@@ -153,7 +173,9 @@ export function SaleScreen({
     const items = entry.items
       .map((item) => cartItemFromSaleLine(item))
       .filter((item): item is CartItem => item !== null);
+    const lineDiscount = items.reduce((acc, item) => acc + item.discountCents, 0);
     setCart(items);
+    setOrderDiscountCents(Math.max(0, entry.sale.discount_cents - lineDiscount));
     setHistory([]);
     setHeldOpen(false);
     setMessage('Venta retomada.');
@@ -172,8 +194,8 @@ export function SaleScreen({
       store_id: store.id,
       user_id: user.id,
       client_uuid: uid(),
-      subtotal_cents: total,
-      discount_cents: 0,
+      subtotal_cents: subtotal,
+      discount_cents: discountTotal,
       total_cents: total,
       lines: buildLines(),
       payments: [{ method: 'cash', amount_cents: total, reference: null }],
@@ -189,8 +211,10 @@ export function SaleScreen({
             ? `${item.qty} × ${formatMXN(item.unitPriceCents)}`
             : `${formatMeasure(item.measure ?? 0, item.saleUnit)} × ${formatMXN(item.unitPriceCents)}`,
         importeCents: item.lineTotalCents,
+        discountCents: item.discountCents,
       })),
-      subtotalCents: total,
+      subtotalCents: subtotal,
+      discountCents: discountTotal,
       totalCents: total,
       receivedCents: received,
       changeCents: changeDue(total, received),
@@ -198,6 +222,7 @@ export function SaleScreen({
     setPaymentOpen(false);
     setCart([]);
     setHistory([]);
+    setOrderDiscountCents(0);
     beep(1200, 150);
     onRefreshProducts();
   }
@@ -215,6 +240,11 @@ export function SaleScreen({
           </div>
         </div>
         <div className="flex items-center gap-2">
+          {canManage && (
+            <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-4 py-3 text-lg">
+              Menú
+            </button>
+          )}
           <button type="button" onClick={openHeld} className="btn btn-neutral px-4 py-3 text-lg">
             En espera
           </button>
@@ -254,6 +284,24 @@ export function SaleScreen({
               <span className="text-xl text-slate-600">{count} artículo(s)</span>
               <span className="text-3xl font-extrabold">{formatMXN(total)}</span>
             </div>
+
+            {discountTotal > 0 && (
+              <div className="mb-3 flex items-center justify-between text-lg text-green-700">
+                <span>Subtotal {formatMXN(subtotal)} · Descuento</span>
+                <span className="font-bold">−{formatMXN(discountTotal)}</span>
+              </div>
+            )}
+
+            {store.modules.discounts && (
+              <button
+                type="button"
+                onClick={() => setDiscountOpen(true)}
+                disabled={cart.length === 0}
+                className={`btn mb-2 w-full py-4 text-xl ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'}`}
+              >
+                % Aplicar descuento
+              </button>
+            )}
 
             <div className="mb-3 grid grid-cols-2 gap-2">
               <button
@@ -319,20 +367,31 @@ export function SaleScreen({
         />
       )}
 
+      {discountOpen && (
+        <DiscountModal
+          cart={cart}
+          orderDiscountCents={orderDiscountCents}
+          onApplyLine={applyLineDiscount}
+          onApplyOrder={setOrderDiscountCents}
+          onClose={() => setDiscountOpen(false)}
+        />
+      )}
+
       <TicketModal open={ticket !== null} store={store} data={ticket} onNewSale={() => setTicket(null)} />
 
-      <ProductFormModal
-        open={productFormOpen}
-        categories={categories}
-        storeId={store.id}
-        userId={user.id}
-        onClose={() => setProductFormOpen(false)}
-        onSaved={(product) => {
-          setProductFormOpen(false);
-          onRefreshProducts();
-          setMessage(`Producto "${product.name}" guardado.`);
-        }}
-      />
+      {productFormOpen && (
+        <ProductFormModal
+          categories={categories}
+          storeId={store.id}
+          userId={user.id}
+          onClose={() => setProductFormOpen(false)}
+          onSaved={(product) => {
+            setProductFormOpen(false);
+            onRefreshProducts();
+            setMessage(`Producto "${product.name}" guardado.`);
+          }}
+        />
+      )}
 
       {heldOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
@@ -378,6 +437,7 @@ export function SaleScreen({
           setAskCancel(false);
           setCart([]);
           setHistory([]);
+          setOrderDiscountCents(0);
           setMessage('Venta cancelada.');
         }}
         onCancel={() => setAskCancel(false)}

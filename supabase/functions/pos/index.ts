@@ -306,6 +306,179 @@ Deno.serve(async (request) => {
         return json(data);
       }
 
+      case 'deactivateProduct': {
+        const { error } = await db
+          .from('product')
+          .update({ active: false })
+          .eq('id', body.id);
+        if (error) throw error;
+        return json(true);
+      }
+
+      case 'listSuppliers': {
+        const { data, error } = await db
+          .from('supplier')
+          .select('*')
+          .eq('active', true)
+          .order('name');
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'createSupplier': {
+        const { data, error } = await db.from('supplier').insert(body.input).select('*').single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'updateSupplier': {
+        const { data, error } = await db
+          .from('supplier')
+          .update(body.patch)
+          .eq('id', body.id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'createPurchase': {
+        const input = body.input as {
+          items: Array<{ product_id: string; qty: number; unit_cost_cents: number; expires_on: string | null }>;
+          [key: string]: unknown;
+        };
+        const { items, ...purchaseData } = input;
+        let total = 0;
+        for (const item of items) {
+          const { data: p } = await db
+            .from('product')
+            .select('sale_unit')
+            .eq('id', item.product_id)
+            .single();
+          const saleQty = p?.sale_unit === 'piece' ? item.qty : item.qty / 1000;
+          total += Math.round(item.unit_cost_cents * saleQty);
+        }
+        const { data: purchase, error } = await db
+          .from('purchase')
+          .insert({ ...purchaseData, total_cents: total })
+          .select('*')
+          .single();
+        if (error) throw error;
+
+        const { data: created, error: itemsError } = await db
+          .from('purchase_item')
+          .insert(items.map((item) => ({ ...item, purchase_id: purchase.id })))
+          .select('*');
+        if (itemsError) throw itemsError;
+
+        for (const item of created) {
+          const { data: product } = await db
+            .from('product')
+            .select('stock_qty')
+            .eq('id', item.product_id)
+            .single();
+          if (product) {
+            await db
+              .from('product')
+              .update({
+                stock_qty: product.stock_qty + item.qty,
+                cost_cents: item.unit_cost_cents,
+              })
+              .eq('id', item.product_id);
+          }
+          await db.from('stock_movement').insert({
+            store_id: purchase.store_id,
+            product_id: item.product_id,
+            type: 'purchase',
+            qty: item.qty,
+            reason: `Compra ${purchase.invoice_ref ?? ''}`.trim(),
+            user_id: purchase.user_id,
+          });
+        }
+        return json({ purchase, items: created });
+      }
+
+      case 'listPurchases': {
+        const { data, error } = await db
+          .from('purchase')
+          .select('*, items:purchase_item(*)')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return json((data ?? []).map((p) => ({ purchase: p, items: p.items })));
+      }
+
+      case 'adjustStock': {
+        const input = body.input as {
+          store_id: string;
+          product_id: string;
+          delta: number;
+          type: 'adjustment' | 'waste';
+          reason: string;
+          user_id: string;
+        };
+        const { data: product } = await db
+          .from('product')
+          .select('stock_qty')
+          .eq('id', input.product_id)
+          .single();
+        if (product) {
+          await db
+            .from('product')
+            .update({ stock_qty: Math.max(0, product.stock_qty + input.delta) })
+            .eq('id', input.product_id);
+        }
+        const { data, error } = await db
+          .from('stock_movement')
+          .insert({
+            store_id: input.store_id,
+            product_id: input.product_id,
+            type: input.type,
+            qty: input.delta,
+            reason: input.reason,
+            user_id: input.user_id,
+          })
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'listStockMovements': {
+        const filter = (body.filter ?? {}) as {
+          productId?: string;
+          type?: string;
+          userId?: string;
+          from?: string;
+          to?: string;
+        };
+        let query = db.from('stock_movement').select('*').order('created_at', { ascending: false }).limit(500);
+        if (filter.productId) query = query.eq('product_id', filter.productId);
+        if (filter.type) query = query.eq('type', filter.type);
+        if (filter.userId) query = query.eq('user_id', filter.userId);
+        if (filter.from) query = query.gte('created_at', filter.from);
+        if (filter.to) query = query.lte('created_at', filter.to);
+        const { data, error } = await query;
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'updateStore': {
+        const { data: current, error: readError } = await db
+          .from('store')
+          .select('id')
+          .limit(1)
+          .single();
+        if (readError) throw readError;
+        const { data, error } = await db
+          .from('store')
+          .update(body.patch)
+          .eq('id', current.id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
       default:
         return fail(`Acción desconocida: ${body.action}`, 404);
     }

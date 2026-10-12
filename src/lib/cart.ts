@@ -13,7 +13,10 @@ export interface CartItem {
   qty: number;
   /** Gramos (weight) o mililitros (volume); null cuando es por pieza. */
   measure: number | null;
+  /** Importe bruto del renglón (sin descuento). */
   lineTotalCents: number;
+  /** Descuento aplicado al renglón (F-112). */
+  discountCents: number;
 }
 
 function lineTotal(
@@ -38,6 +41,7 @@ export function pieceFromProduct(product: Product, qty = 1): CartItem {
     qty,
     measure: null,
     lineTotalCents: lineTotal(product.price_cents, 'piece', qty, null),
+    discountCents: 0,
   };
 }
 
@@ -53,6 +57,7 @@ export function measureFromProduct(product: Product, measure: number): CartItem 
     qty: 1,
     measure,
     lineTotalCents: lineTotal(product.price_cents, product.sale_unit, 1, measure),
+    discountCents: 0,
   };
 }
 
@@ -91,7 +96,13 @@ export function changeQty(cart: readonly CartItem[], key: string, delta: number)
   return cart.map((item) => {
     if (item.key !== key || item.saleUnit !== 'piece') return item;
     const qty = Math.max(1, item.qty + delta);
-    return { ...item, qty, lineTotalCents: lineTotal(item.unitPriceCents, 'piece', qty, null) };
+    const lineTotalCents = lineTotal(item.unitPriceCents, 'piece', qty, null);
+    return {
+      ...item,
+      qty,
+      lineTotalCents,
+      discountCents: Math.min(item.discountCents, lineTotalCents),
+    };
   });
 }
 
@@ -99,10 +110,12 @@ export function changeQty(cart: readonly CartItem[], key: string, delta: number)
 export function setMeasure(cart: readonly CartItem[], key: string, measure: number): CartItem[] {
   return cart.map((item) => {
     if (item.key !== key || item.saleUnit === 'piece' || measure <= 0) return item;
+    const lineTotalCents = lineTotal(item.unitPriceCents, item.saleUnit, 1, measure);
     return {
       ...item,
       measure,
-      lineTotalCents: lineTotal(item.unitPriceCents, item.saleUnit, 1, measure),
+      lineTotalCents,
+      discountCents: Math.min(item.discountCents, lineTotalCents),
     };
   });
 }
@@ -111,8 +124,37 @@ export function removeItem(cart: readonly CartItem[], key: string): CartItem[] {
   return cart.filter((item) => item.key !== key);
 }
 
-export function cartTotalCents(cart: readonly CartItem[]): number {
+/** Aplica un descuento (en centavos) a un renglón. */
+export function setLineDiscount(
+  cart: readonly CartItem[],
+  key: string,
+  discountCents: number,
+): CartItem[] {
+  return cart.map((item) =>
+    item.key === key
+      ? { ...item, discountCents: Math.min(Math.max(0, discountCents), item.lineTotalCents) }
+      : item,
+  );
+}
+
+/** Importe neto de un renglón (bruto − descuento). */
+export function netLineTotal(item: CartItem): number {
+  return item.lineTotalCents - item.discountCents;
+}
+
+/** Subtotal bruto del carrito (sin descuentos). */
+export function cartSubtotalCents(cart: readonly CartItem[]): number {
   return sumCents(cart.map((item) => item.lineTotalCents));
+}
+
+/** Descuentos por renglón acumulados. */
+export function cartDiscountCents(cart: readonly CartItem[]): number {
+  return sumCents(cart.map((item) => item.discountCents));
+}
+
+/** Total neto del carrito (bruto − descuentos de renglón). */
+export function cartTotalCents(cart: readonly CartItem[]): number {
+  return sumCents(cart.map((item) => netLineTotal(item)));
 }
 
 export function cartItemCount(cart: readonly CartItem[]): number {

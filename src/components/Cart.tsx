@@ -35,6 +35,11 @@ export function Cart({ items, onInc, onDec, onRemove, onEditMeasure }: CartProps
                 ? `${item.qty} × ${formatMXN(item.unitPriceCents)}`
                 : `${formatMeasure(item.measure ?? 0, item.saleUnit)} × ${formatMXN(item.unitPriceCents)}`}
             </p>
+            {item.discountCents > 0 && (
+              <p className="text-base font-semibold text-green-700">
+                Descuento −{formatMXN(item.discountCents)}
+              </p>
+            )}
           </div>
 
           <div className="flex items-center gap-2">

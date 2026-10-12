@@ -5,6 +5,8 @@ export interface TicketLine {
   name: string;
   detail: string;
   importeCents: number;
+  /** Descuento aplicado al renglón (F-112), si lo hay. */
+  discountCents?: number;
 }
 
 export interface TicketData {
@@ -12,6 +14,7 @@ export interface TicketData {
   dateIso: string;
   lines: TicketLine[];
   subtotalCents: number;
+  discountCents?: number;
   totalCents: number;
   receivedCents: number;
   changeCents: number;
@@ -45,6 +48,14 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
                 <span className="font-semibold">{line.name}</span>
                 <br />
                 <span className="text-base text-slate-600">{line.detail}</span>
+                {line.discountCents ? (
+                  <>
+                    <br />
+                    <span className="text-base font-semibold text-green-700">
+                      Descuento −{formatMXN(line.discountCents)}
+                    </span>
+                  </>
+                ) : null}
               </span>
               <span className="font-bold">{formatMXN(line.importeCents)}</span>
             </li>
@@ -56,6 +67,12 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
             <span className="text-slate-600">Subtotal</span>
             <span className="font-bold">{formatMXN(data.subtotalCents)}</span>
           </div>
+          {data.discountCents ? (
+            <div className="flex justify-between text-green-700">
+              <span>Descuento</span>
+              <span className="font-bold">−{formatMXN(data.discountCents)}</span>
+            </div>
+          ) : null}
           <div className="flex justify-between text-2xl font-extrabold">
             <span>Total</span>
             <span>{formatMXN(data.totalCents)}</span>

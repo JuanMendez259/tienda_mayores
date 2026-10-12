@@ -5,8 +5,18 @@ import { LoginScreen } from './components/LoginScreen';
 import { OpenCashScreen } from './components/OpenCashScreen';
 import { SaleScreen } from './components/SaleScreen';
 import { CashPanel } from './components/CashPanel';
+import { AdminScreen } from './components/admin/AdminScreen';
+import { CapturaScreen } from './components/CapturaScreen';
 
 type Stage = 'loading' | 'login' | 'openCash' | 'ready' | 'error';
+
+const FONT_SIZES: Record<Store['font_size'], string> = {
+  normal: '18px',
+  grande: '20px',
+  muy_grande: '22px',
+};
+
+const isCapturaMode = new URLSearchParams(window.location.search).get('captura') === '1';
 
 function App() {
   const [stage, setStage] = useState<Stage>('loading');
@@ -17,8 +27,15 @@ function App() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [cashPanelOpen, setCashPanelOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    if (!store) return;
+    document.documentElement.style.fontSize = FONT_SIZES[store.font_size] ?? FONT_SIZES.normal;
+    document.documentElement.style.setProperty('--color-primary', store.primary_color);
+  }, [store]);
 
   useEffect(() => {
     const goOnline = () => setOnline(true);
@@ -93,6 +110,10 @@ function App() {
     setStage('openCash');
   }
 
+  if (isCapturaMode) {
+    return <CapturaScreen />;
+  }
+
   if (stage === 'loading') {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-100 text-2xl font-bold">
@@ -135,6 +156,7 @@ function App() {
             categories={categories}
             onRefreshProducts={refreshProducts}
             onOpenCash={() => setCashPanelOpen(true)}
+            onOpenAdmin={() => setAdminOpen(true)}
             onLogout={handleLogout}
           />
           {cashPanelOpen && (
@@ -142,6 +164,18 @@ function App() {
               session={cashSession}
               onClose={() => setCashPanelOpen(false)}
               onClosed={handleCashClosed}
+            />
+          )}
+          {adminOpen && (
+            <AdminScreen
+              store={store}
+              user={user}
+              users={users}
+              products={products}
+              categories={categories}
+              onClose={() => setAdminOpen(false)}
+              onRefreshProducts={refreshProducts}
+              onStoreSaved={setStore}
             />
           )}
         </>

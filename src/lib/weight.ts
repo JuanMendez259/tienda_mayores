@@ -37,3 +37,21 @@ export function parseLitersToMilliliters(text: string): number {
   if (Number.isNaN(value)) return 0;
   return clean.includes('.') ? Math.round(value * 1000) : Math.round(value);
 }
+
+/** Etiqueta corta de la unidad de venta. */
+export function unitLabel(saleUnit: 'piece' | 'weight' | 'volume'): string {
+  return saleUnit === 'weight' ? 'kg' : saleUnit === 'volume' ? 'L' : 'pza';
+}
+
+/** Formatea una existencia según la unidad de venta: 3 pza, 1.250 kg, 1.500 L. */
+export function formatStock(qty: number, saleUnit: 'piece' | 'weight' | 'volume'): string {
+  if (saleUnit === 'piece') return `${Math.round(qty)} pza`;
+  return saleUnit === 'weight' ? formatKilograms(qty) : formatLiters(qty);
+}
+
+/** Convierte una cantidad capturada por el usuario a unidades base. */
+export function parseStockInput(text: string, saleUnit: 'piece' | 'weight' | 'volume'): number {
+  if (saleUnit === 'weight') return parseKilogramsToGrams(text);
+  if (saleUnit === 'volume') return parseLitersToMilliliters(text);
+  return Math.max(0, Math.round(Number(text) || 0));
+}

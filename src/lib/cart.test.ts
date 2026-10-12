@@ -3,10 +3,14 @@ import type { Product } from '../types/database';
 import {
   addMeasure,
   addPiece,
+  cartDiscountCents,
   cartItemCount,
+  cartSubtotalCents,
   cartTotalCents,
   changeQty,
+  netLineTotal,
   removeItem,
+  setLineDiscount,
   setMeasure,
 } from './cart';
 
@@ -81,5 +85,33 @@ describe('carrito por peso/volumen', () => {
     expect(cart[0].measure).toBe(1500);
     expect(cart[0].lineTotalCents).toBe(15000);
     expect(cartItemCount(cart)).toBe(1);
+  });
+});
+
+describe('descuentos por renglón (F-112)', () => {
+  it('aplica y calcula el neto', () => {
+    let cart = addPiece([], product({ id: 'a', price_cents: 5000 }));
+    cart = setLineDiscount(cart, cart[0].key, 1000);
+    expect(cart[0].discountCents).toBe(1000);
+    expect(cartSubtotalCents(cart)).toBe(5000);
+    expect(cartDiscountCents(cart)).toBe(1000);
+    expect(netLineTotal(cart[0])).toBe(4000);
+    expect(cartTotalCents(cart)).toBe(4000);
+  });
+
+  it('no permite descuento mayor al importe', () => {
+    let cart = addPiece([], product({ id: 'a', price_cents: 1500 }));
+    cart = setLineDiscount(cart, cart[0].key, 9999);
+    expect(cart[0].discountCents).toBe(1500);
+    expect(cartTotalCents(cart)).toBe(0);
+  });
+
+  it('recorta el descuento al bajar la cantidad', () => {
+    let cart = addPiece([], product({ id: 'a', price_cents: 1000 }));
+    cart = addPiece(cart, product({ id: 'a', price_cents: 1000 }));
+    cart = setLineDiscount(cart, cart[0].key, 2000);
+    expect(cart[0].discountCents).toBe(2000);
+    cart = changeQty(cart, cart[0].key, -1);
+    expect(cart[0].discountCents).toBe(1000);
   });
 });

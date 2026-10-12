@@ -37,6 +37,23 @@ export function sumCents(values: readonly number[]): number {
   return values.reduce((acc, value) => acc + Math.round(value), 0);
 }
 
+export type DiscountMode = 'amount' | 'percent';
+
+/**
+ * Calcula un descuento (F-112).
+ * - `amount`: valor en centavos.
+ * - `percent`: valor entero de porcentaje (10 = 10 %).
+ * Nunca excede la base ni es negativo.
+ */
+export function discountAmount(baseCents: number, mode: DiscountMode, value: number): number {
+  const base = Math.max(0, Math.round(baseCents));
+  const raw =
+    mode === 'percent'
+      ? Math.round((base * Math.max(0, value)) / 100)
+      : Math.round(Math.max(0, value));
+  return Math.min(base, raw);
+}
+
 /** Cambio a entregar. Nunca negativo. */
 export function changeDue(totalCents: number, receivedCents: number): number {
   return Math.max(0, Math.round(receivedCents) - Math.round(totalCents));

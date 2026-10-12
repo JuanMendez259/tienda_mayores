@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   changeDue,
+  discountAmount,
   formatMXN,
   lineTotalByMeasure,
   lineTotalByQuantity,
@@ -45,5 +46,19 @@ describe('sumCents y changeDue', () => {
   it('calcula el cambio y nunca es negativo', () => {
     expect(changeDue(20735, 50000)).toBe(29265);
     expect(changeDue(50000, 20000)).toBe(0);
+  });
+});
+
+describe('discountAmount', () => {
+  it('calcula descuento por monto', () => {
+    expect(discountAmount(10000, 'amount', 1500)).toBe(1500);
+  });
+  it('calcula descuento por porcentaje', () => {
+    expect(discountAmount(10000, 'percent', 10)).toBe(1000);
+    expect(discountAmount(9999, 'percent', 15)).toBe(1500);
+  });
+  it('nunca excede la base ni es negativo', () => {
+    expect(discountAmount(500, 'amount', 900)).toBe(500);
+    expect(discountAmount(500, 'amount', -100)).toBe(0);
   });
 });

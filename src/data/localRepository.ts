@@ -8,20 +8,29 @@ import type {
   Payment,
   Product,
   ProductUpdate,
+  Purchase,
+  PurchaseItem,
   Sale,
   SaleItem,
   StockMovement,
   Store,
+  StoreUpdate,
+  Supplier,
+  SupplierUpdate,
 } from '../types/database';
 import { uid } from '../lib/uid';
 import type {
   CashSummary,
   CheckoutInput,
+  CreatePurchaseInput,
   HeldSaleInput,
   NewProductInput,
+  NewSupplierInput,
   OpenCashInput,
   Repository,
   SaleWithItems,
+  StockAdjustmentInput,
+  StockMovementFilter,
 } from './repository';
 import {
   DEMO_STORE_ID,
@@ -51,6 +60,9 @@ function createLocalRepository(): Repository {
   const paymentsBySale = new Map<string, Payment[]>();
   const cashSessions = new Map<string, CashSession>();
   const cashMovements = new Map<string, CashMovement[]>();
+  const suppliers = new Map<string, Supplier>();
+  const purchases = new Map<string, Purchase>();
+  const purchaseItems = new Map<string, PurchaseItem[]>();
   const auditLogs: AuditLog[] = [];
   const stockMovements: StockMovement[] = [];
   let saleCounter = 0;
@@ -106,6 +118,7 @@ function createLocalRepository(): Repository {
       qty: line.qty,
       unit_price_cents: line.unit_price_cents,
       line_total_cents: line.line_total_cents,
+      discount_cents: line.discount_cents,
       weight_grams: line.weight_grams,
     }));
   }
@@ -191,6 +204,139 @@ function createLocalRepository(): Repository {
       products.set(id, updated);
       return clone(updated);
     },
+    async deactivateProduct(id: string) {
+      const current = products.get(id);
+      if (!current) return;
+      products.set(id, { ...current, active: false, updated_at: nowIso() });
+    },
+
+    async listSuppliers() {
+      return clone(
+        [...suppliers.values()]
+          .filter((s) => s.active)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
+    },
+    async createSupplier(input: NewSupplierInput) {
+      const supplier: Supplier = {
+        ...input,
+        id: uid(),
+        active: true,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
+      suppliers.set(supplier.id, supplier);
+      return clone(supplier);
+    },
+    async updateSupplier(id: string, patch: SupplierUpdate) {
+      const current = suppliers.get(id);
+      if (!current) throw new Error('Proveedor no encontrado');
+      const updated: Supplier = { ...current, ...patch, updated_at: nowIso() };
+      suppliers.set(id, updated);
+      return clone(updated);
+    },
+    async createPurchase(input: CreatePurchaseInput) {
+      const purchase: Purchase = {
+        id: uid(),
+        store_id: input.store_id,
+        supplier_id: input.supplier_id,
+        user_id: input.user_id,
+        total_cents: 0,
+        invoice_ref: input.invoice_ref,
+        invoice_file_url: input.invoice_file_url,
+        created_at: nowIso(),
+      };
+      const items: PurchaseItem[] = input.items.map((item) => ({
+        id: uid(),
+        purchase_id: purchase.id,
+        product_id: item.product_id,
+        qty: item.qty,
+        unit_cost_cents: item.unit_cost_cents,
+        expires_on: item.expires_on,
+      }));
+      // El costo es por unidad de venta (pieza / kg / L); el total usa la
+      // cantidad de venta equivalente a la cantidad base capturada.
+      purchase.total_cents = items.reduce((acc, item) => {
+        const unit = products.get(item.product_id)?.sale_unit ?? 'piece';
+        const saleQty = unit === 'piece' ? item.qty : item.qty / 1000;
+        return acc + Math.round(item.unit_cost_cents * saleQty);
+      }, 0);
+      purchases.set(purchase.id, purchase);
+      purchaseItems.set(purchase.id, items);
+      for (const item of items) {
+        const product = products.get(item.product_id);
+        if (product) {
+          products.set(item.product_id, {
+            ...product,
+            stock_qty: product.stock_qty + item.qty,
+            cost_cents: item.unit_cost_cents || product.cost_cents,
+            updated_at: nowIso(),
+          });
+        }
+        stockMovements.push({
+          id: uid(),
+          store_id: purchase.store_id,
+          product_id: item.product_id,
+          type: 'purchase',
+          qty: item.qty,
+          reason: `Compra ${purchase.invoice_ref ?? purchase.id.slice(0, 8)}`,
+          user_id: purchase.user_id,
+          sale_id: null,
+          created_at: nowIso(),
+        });
+      }
+      return { purchase: clone(purchase), items: clone(items) };
+    },
+    async listPurchases() {
+      return [...purchases.values()]
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((purchase) => ({
+          purchase: clone(purchase),
+          items: clone(purchaseItems.get(purchase.id) ?? []),
+        }));
+    },
+
+    async adjustStock(input: StockAdjustmentInput) {
+      const product = products.get(input.product_id);
+      if (!product) throw new Error('Producto no encontrado');
+      products.set(input.product_id, {
+        ...product,
+        stock_qty: Math.max(0, product.stock_qty + input.delta),
+        updated_at: nowIso(),
+      });
+      const movement: StockMovement = {
+        id: uid(),
+        store_id: input.store_id,
+        product_id: input.product_id,
+        type: input.type,
+        qty: input.delta,
+        reason: input.reason,
+        user_id: input.user_id,
+        sale_id: null,
+        created_at: nowIso(),
+      };
+      stockMovements.push(movement);
+      return clone(movement);
+    },
+    async listStockMovements(filter?: StockMovementFilter) {
+      return clone(
+        stockMovements
+          .filter((movement) => {
+            if (filter?.productId && movement.product_id !== filter.productId) return false;
+            if (filter?.type && movement.type !== filter.type) return false;
+            if (filter?.userId && movement.user_id !== filter.userId) return false;
+            if (filter?.from && movement.created_at < filter.from) return false;
+            if (filter?.to && movement.created_at > filter.to) return false;
+            return true;
+          })
+          .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+      );
+    },
+
+    async updateStore(patch: StoreUpdate) {
+      Object.assign(store, patch, { updated_at: nowIso() });
+      return clone(store);
+    },
 
     async checkout(input: CheckoutInput) {
       const base: Omit<Sale, 'id' | 'number' | 'created_at'> = {
@@ -221,7 +367,7 @@ function createLocalRepository(): Repository {
         user_id: input.user_id,
         status: 'held',
         subtotal_cents: input.subtotal_cents,
-        discount_cents: 0,
+        discount_cents: input.discount_cents ?? 0,
         total_cents: input.total_cents,
         paid_at: null,
         synced_at: nowIso(),

@@ -3,38 +3,38 @@ import type { Category, Product, SaleUnit } from '../types/database';
 import { repository } from '../data';
 import { parseAmountToCents } from '../lib/money';
 import { fileToDataUrl } from '../lib/image';
+import { generateBarcode } from '../lib/csv';
 
 interface ProductFormModalProps {
-  open: boolean;
   categories: Category[];
   storeId: string;
   userId: string;
+  /** Si se pasa, el formulario edita ese producto (F-401). */
+  product?: Product | null;
   onClose: () => void;
   onSaved: (product: Product) => void;
 }
 
-/** Alta rápida de producto desde la venta, con foto desde archivo (F-403). */
+/** Alta y edición de producto, con foto desde cámara o archivo (F-401, F-403). */
 export function ProductFormModal({
-  open,
   categories,
   storeId,
   userId,
+  product = null,
   onClose,
   onSaved,
 }: ProductFormModalProps) {
-  const [name, setName] = useState('');
-  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? '');
-  const [saleUnit, setSaleUnit] = useState<SaleUnit>('piece');
-  const [price, setPrice] = useState('');
-  const [cost, setCost] = useState('');
-  const [stock, setStock] = useState('0');
-  const [lowStock, setLowStock] = useState('3');
-  const [barcode, setBarcode] = useState('');
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [name, setName] = useState(product?.name ?? '');
+  const [categoryId, setCategoryId] = useState(product?.category_id ?? categories[0]?.id ?? '');
+  const [saleUnit, setSaleUnit] = useState<SaleUnit>(product?.sale_unit ?? 'piece');
+  const [price, setPrice] = useState(product ? (product.price_cents / 100).toFixed(2) : '');
+  const [cost, setCost] = useState(product && product.cost_cents ? (product.cost_cents / 100).toFixed(2) : '');
+  const [stock, setStock] = useState(product ? String(product.stock_qty) : '0');
+  const [lowStock, setLowStock] = useState(product ? String(product.low_stock_threshold) : '3');
+  const [barcode, setBarcode] = useState(product?.barcode ?? '');
+  const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  if (!open) return null;
 
   const stockLabel =
     saleUnit === 'weight' ? 'Gramos en bodega' : saleUnit === 'volume' ? 'Mililitros en bodega' : 'Piezas en bodega';
@@ -56,23 +56,25 @@ export function ProductFormModal({
 
     setSaving(true);
     setError(null);
-    const product = await repository.createProduct({
-      store_id: storeId,
+    const trimmedBarcode = barcode.trim();
+    const fields = {
       category_id: categoryId || null,
       name: name.trim(),
       image_url: imageUrl,
       sale_unit: saleUnit,
       price_cents: priceCents,
       cost_cents: parseAmountToCents(cost),
-      barcode: barcode.trim() || null,
-      is_generated_barcode: !barcode.trim(),
+      barcode: trimmedBarcode || generateBarcode(),
+      is_generated_barcode: !trimmedBarcode,
       track_stock: true,
       stock_qty: Math.max(0, Math.round(Number(stock) || 0)),
       low_stock_threshold: Math.max(0, Math.round(Number(lowStock) || 0)),
-      created_by: userId,
-    });
+    };
+    const saved = product
+      ? await repository.updateProduct(product.id, fields)
+      : await repository.createProduct({ ...fields, store_id: storeId, created_by: userId });
     setSaving(false);
-    onSaved(product);
+    onSaved(saved);
   }
 
   const field = 'min-h-[56px] w-full rounded-2xl border-2 border-slate-300 px-4 text-xl';
@@ -81,7 +83,7 @@ export function ProductFormModal({
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
       <div className="card max-h-[92vh] w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-modal="true">
-        <h2 className="title mb-4 text-3xl">Nuevo producto</h2>
+        <h2 className="title mb-4 text-3xl">{product ? 'Editar producto' : 'Nuevo producto'}</h2>
 
         <div className="mb-4 flex items-center gap-4">
           {imageUrl ? (
@@ -92,8 +94,14 @@ export function ProductFormModal({
             </div>
           )}
           <label className="btn btn-neutral cursor-pointer px-5 py-4 text-lg">
-            Elegir foto
-            <input type="file" accept="image/*" onChange={pickImage} className="hidden" />
+            Tomar o elegir foto
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={pickImage}
+              className="hidden"
+            />
           </label>
         </div>
 
@@ -166,7 +174,7 @@ export function ProductFormModal({
             disabled={saving}
             className="btn btn-primary flex-1 py-4 text-xl text-white"
           >
-            {saving ? 'Guardando…' : 'Guardar producto'}
+            {saving ? 'Guardando…' : product ? 'Guardar cambios' : 'Guardar producto'}
           </button>
         </div>
       </div>

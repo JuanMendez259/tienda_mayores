@@ -18,6 +18,17 @@ export const seedStore: Store = {
   logo_url: emojiImage('🏪', '#dcfce7'),
   timezone: 'America/Mexico_City',
   ticket_footer: '¡Gracias por su compra!',
+  font_size: 'normal',
+  primary_color: '#16a34a',
+  discount_requires_manager: true,
+  modules: {
+    discounts: true,
+    inventory: true,
+    movements: true,
+    photos: true,
+    purchases: true,
+    suppliers: true,
+  },
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };

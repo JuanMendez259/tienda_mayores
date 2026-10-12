@@ -11,6 +11,9 @@ import { TicketModal } from './TicketModal';
 import { CashPanel } from './CashPanel';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ProductFormModal } from './ProductFormModal';
+import { DiscountModal } from './DiscountModal';
+import { AdminScreen } from './admin/AdminScreen';
+import { CapturaScreen } from './CapturaScreen';
 
 const noop = () => {};
 
@@ -52,6 +55,7 @@ describe('render de pantallas (smoke)', () => {
         categories={seedCategories}
         onRefreshProducts={noop}
         onOpenCash={noop}
+        onOpenAdmin={noop}
         onLogout={noop}
       />,
     );
@@ -92,7 +96,6 @@ describe('render de pantallas (smoke)', () => {
     expect(
       renderToStaticMarkup(
         <ProductFormModal
-          open
           categories={seedCategories}
           storeId={seedStore.id}
           userId="user-maria"
@@ -106,5 +109,41 @@ describe('render de pantallas (smoke)', () => {
         <ConfirmDialog open title="¿Cancelar?" onConfirm={noop} onCancel={noop} />,
       ),
     ).toContain('¿Cancelar?');
+  });
+
+  it('renderiza la administración con pestañas (Fase 2)', () => {
+    const html = renderToStaticMarkup(
+      <AdminScreen
+        store={seedStore}
+        user={seedUsers.find((u) => u.role === 'owner') ?? seedUsers[0]}
+        users={seedUsers}
+        products={seedProducts}
+        categories={seedCategories}
+        onClose={noop}
+        onRefreshProducts={noop}
+        onStoreSaved={noop}
+      />,
+    );
+    expect(html).toContain('Administración');
+    expect(html).toContain('Configuración');
+    expect(html).toContain('Proveedores');
+  });
+
+  it('renderiza el modal de descuento', () => {
+    const html = renderToStaticMarkup(
+      <DiscountModal
+        cart={[]}
+        orderDiscountCents={0}
+        onApplyLine={noop}
+        onApplyOrder={noop}
+        onClose={noop}
+      />,
+    );
+    expect(html).toContain('Aplicar descuento');
+  });
+
+  it('renderiza la captura móvil sin conexión al backend', () => {
+    const html = renderToStaticMarkup(<CapturaScreen />);
+    expect(html).toContain('Alta rápida');
   });
 });
