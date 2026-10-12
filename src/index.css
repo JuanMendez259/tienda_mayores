@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+/* Base >= 18px (Sección 7: UX tercera edad) */
+html {
+  font-size: 18px;
+}
+
+body {
+  margin: 0;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 text-xl font-bold transition-colors select-none;
+    min-width: 56px;
+    min-height: 56px;
+  }
+  .btn:active {
+    transform: scale(0.98);
+  }
+  .btn-primary {
+    @apply bg-green-600 text-white hover:bg-green-700;
+  }
+  .btn-danger {
+    @apply bg-red-600 text-white hover:bg-red-700;
+  }
+  .btn-neutral {
+    @apply bg-slate-200 text-slate-900 hover:bg-slate-300;
+  }
+  .btn-warning {
+    @apply bg-amber-400 text-slate-900 hover:bg-amber-500;
+  }
+  .card {
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
+  }
+  .price {
+    @apply text-2xl font-extrabold text-slate-900;
+  }
+  .title {
+    @apply text-2xl font-extrabold;
+  }
+}
