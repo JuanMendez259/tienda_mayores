@@ -29,6 +29,7 @@ export const seedStore: Store = {
     purchases: true,
     suppliers: true,
   },
+  expiry_alert_days: 15,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };

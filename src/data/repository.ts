@@ -7,6 +7,9 @@ import type {
   PaymentMethod,
   Product,
   ProductUpdate,
+  ProductLot,
+  Promotion,
+  PromotionType,
   Purchase,
   PurchaseItem,
   Sale,
@@ -126,6 +129,32 @@ export interface PurchaseWithItems {
   items: PurchaseItem[];
 }
 
+export interface PromotionInput {
+  store_id: string;
+  product_id: string;
+  type: PromotionType;
+  min_qty: number;
+  discount_cents: number;
+  active: boolean;
+}
+
+export interface ReportRange {
+  from: string;
+  to: string;
+}
+
+export interface ReportData {
+  from: string;
+  to: string;
+  salesCount: number;
+  totalSalesCents: number;
+  profitCents: number;
+  byDay: { date: string; totalCents: number; count: number }[];
+  byPaymentMethod: { method: PaymentMethod; totalCents: number; count: number }[];
+  topProducts: { productId: string; name: string; qty: number; totalCents: number }[];
+  lowRotation: { productId: string; name: string; qty: number }[];
+}
+
 export interface OpenCashInput {
   store_id: string;
   user_id: string;
@@ -162,6 +191,14 @@ export interface Repository {
 
   adjustStock(input: StockAdjustmentInput): Promise<StockMovement>;
   listStockMovements(filter?: StockMovementFilter): Promise<StockMovement[]>;
+
+  listPromotions(): Promise<Promotion[]>;
+  savePromotion(input: PromotionInput): Promise<Promotion>;
+  deletePromotion(id: string): Promise<void>;
+
+  listExpiringLots(days: number): Promise<ProductLot[]>;
+
+  getReport(range: ReportRange): Promise<ReportData>;
 
   updateStore(patch: StoreUpdate): Promise<Store>;
 

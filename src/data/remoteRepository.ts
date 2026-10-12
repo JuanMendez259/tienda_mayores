@@ -6,6 +6,8 @@ import type {
   Category,
   Product,
   ProductUpdate,
+  ProductLot,
+  Promotion,
   StockMovement,
   Store,
   StoreUpdate,
@@ -21,7 +23,10 @@ import type {
   NewProductInput,
   NewSupplierInput,
   OpenCashInput,
+  PromotionInput,
   PurchaseWithItems,
+  ReportData,
+  ReportRange,
   Repository,
   SaleWithItems,
   StockAdjustmentInput,
@@ -60,6 +65,13 @@ export const remoteRepository: Repository = {
   adjustStock: (input: StockAdjustmentInput) => call<StockMovement>('adjustStock', { input }),
   listStockMovements: (filter?: StockMovementFilter) =>
     call<StockMovement[]>('listStockMovements', { filter: filter ?? {} }),
+
+  listPromotions: () => call<Promotion[]>('listPromotions'),
+  savePromotion: (input: PromotionInput) => call<Promotion>('savePromotion', { input }),
+  deletePromotion: (id: string) => call<void>('deletePromotion', { id }),
+  listExpiringLots: (days: number) => call<ProductLot[]>('listExpiringLots', { days }),
+
+  getReport: (range: ReportRange) => call<ReportData>('getReport', { range }),
 
   updateStore: (patch: StoreUpdate) => call<Store>('updateStore', { patch }),
 

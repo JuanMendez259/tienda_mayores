@@ -119,3 +119,139 @@ describe('flujo de caja y venta (repositorio local)', () => {
     expect(afterCancel.some((entry) => entry.sale.id === held.sale.id)).toBe(false);
   });
 });
+
+describe('control de la Fase 3 (lotes, promociones, reportes)', () => {
+  it('crea un lote al comprar y lo consume en FEFO al vender', async () => {
+    const store = await repo.getStore();
+    const users = await repo.listUsers();
+    const maria = users[0];
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+
+    await repo.createPurchase({
+      store_id: store.id,
+      supplier_id: null,
+      user_id: maria.id,
+      invoice_ref: 'F-001',
+      invoice_file_url: null,
+      items: [{ product_id: arroz.id, qty: 5, unit_cost_cents: 2000, expires_on: '2030-01-01' }],
+    });
+
+    const lots = await repo.listExpiringLots(3650);
+    const lot = lots.find((l) => l.product_id === arroz.id)!;
+    expect(lot.qty).toBe(5);
+    expect(lot.expires_on).toBe('2030-01-01');
+
+    await repo.checkout({
+      store_id: store.id,
+      user_id: maria.id,
+      client_uuid: 'uuid-fefo',
+      subtotal_cents: 6400,
+      discount_cents: 0,
+      total_cents: 6400,
+      lines: [
+        {
+          product_id: arroz.id,
+          name: arroz.name,
+          sale_unit: 'piece',
+          qty: 2,
+          unit_price_cents: 3200,
+          line_total_cents: 6400,
+          discount_cents: 0,
+          weight_grams: null,
+        },
+      ],
+      payments: [{ method: 'cash', amount_cents: 6400, reference: null }],
+    });
+
+    const afterLot = (await repo.listExpiringLots(3650)).find((l) => l.product_id === arroz.id)!;
+    expect(afterLot.qty).toBe(3);
+  });
+
+  it('no duplica la venta al reenviar el mismo client_uuid', async () => {
+    const store = await repo.getStore();
+    const users = await repo.listUsers();
+    const maria = users[0];
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+    const stockAntes = arroz.stock_qty;
+
+    const input = {
+      store_id: store.id,
+      user_id: maria.id,
+      client_uuid: 'uuid-idempotente',
+      subtotal_cents: 3200,
+      discount_cents: 0,
+      total_cents: 3200,
+      lines: [
+        {
+          product_id: arroz.id,
+          name: arroz.name,
+          sale_unit: 'piece' as const,
+          qty: 1,
+          unit_price_cents: 3200,
+          line_total_cents: 3200,
+          discount_cents: 0,
+          weight_grams: null,
+        },
+      ],
+      payments: [{ method: 'cash' as const, amount_cents: 3200, reference: null }],
+    };
+
+    const first = await repo.checkout(input);
+    const second = await repo.checkout(input);
+    expect(second.sale.id).toBe(first.sale.id);
+
+    const stockDespues = (await repo.listProducts()).find((p) => p.id === arroz.id)!.stock_qty;
+    expect(stockDespues).toBe(stockAntes - 1);
+  });
+
+  it('guarda y lista promociones, y calcula el reporte del periodo', async () => {
+    const store = await repo.getStore();
+    const users = await repo.listUsers();
+    const maria = users[0];
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+
+    const promo = await repo.savePromotion({
+      store_id: store.id,
+      product_id: arroz.id,
+      type: 'bogo',
+      min_qty: 2,
+      discount_cents: 0,
+      active: true,
+    });
+    expect((await repo.listPromotions())).toHaveLength(1);
+
+    await repo.checkout({
+      store_id: store.id,
+      user_id: maria.id,
+      client_uuid: 'uuid-reporte',
+      subtotal_cents: 3200,
+      discount_cents: 0,
+      total_cents: 3200,
+      lines: [
+        {
+          product_id: arroz.id,
+          name: arroz.name,
+          sale_unit: 'piece',
+          qty: 1,
+          unit_price_cents: 3200,
+          line_total_cents: 3200,
+          discount_cents: 0,
+          weight_grams: null,
+        },
+      ],
+      payments: [{ method: 'cash', amount_cents: 3200, reference: null }],
+    });
+
+    const report = await repo.getReport({
+      from: '2000-01-01T00:00:00Z',
+      to: '2100-01-01T00:00:00Z',
+    });
+    expect(report.salesCount).toBe(1);
+    expect(report.totalSalesCents).toBe(3200);
+    expect(report.topProducts[0].name).toBe(arroz.name);
+    expect(report.byPaymentMethod[0].method).toBe('cash');
+
+    await repo.deletePromotion(promo.id);
+    expect(await repo.listPromotions()).toHaveLength(0);
+  });
+});

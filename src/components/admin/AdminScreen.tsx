@@ -6,6 +6,10 @@ import { PurchasesAdmin } from './PurchasesAdmin';
 import { SuppliersAdmin } from './SuppliersAdmin';
 import { MovementsAdmin } from './MovementsAdmin';
 import { SettingsAdmin } from './SettingsAdmin';
+import { PromotionsAdmin } from './PromotionsAdmin';
+import { ExpirationsAdmin } from './ExpirationsAdmin';
+import { ReportsAdmin } from './ReportsAdmin';
+import { DiagnosticsAdmin } from './DiagnosticsAdmin';
 
 interface AdminScreenProps {
   store: Store;
@@ -18,9 +22,19 @@ interface AdminScreenProps {
   onStoreSaved: (store: Store) => void;
 }
 
-type Tab = 'products' | 'inventory' | 'purchases' | 'suppliers' | 'movements' | 'settings';
+type Tab =
+  | 'products'
+  | 'inventory'
+  | 'promotions'
+  | 'expirations'
+  | 'purchases'
+  | 'suppliers'
+  | 'movements'
+  | 'reports'
+  | 'settings'
+  | 'diagnostics';
 
-/** Centro de administración de la Fase 2 (catálogo, inventario, compras, configuración). */
+/** Centro de administración (catálogo, inventario, compras, reportes y configuración). */
 export function AdminScreen({
   store,
   user,
@@ -37,10 +51,14 @@ export function AdminScreen({
   const tabs: { id: Tab; label: string }[] = [];
   if (modules.inventory) tabs.push({ id: 'products', label: 'Productos' });
   if (modules.inventory) tabs.push({ id: 'inventory', label: 'Inventario' });
+  if (modules.discounts) tabs.push({ id: 'promotions', label: 'Promociones' });
+  if (modules.inventory) tabs.push({ id: 'expirations', label: 'Caducidades' });
   if (modules.purchases) tabs.push({ id: 'purchases', label: 'Compras' });
   if (modules.suppliers) tabs.push({ id: 'suppliers', label: 'Proveedores' });
   if (modules.movements) tabs.push({ id: 'movements', label: 'Movimientos' });
+  tabs.push({ id: 'reports', label: 'Reportes' });
   if (isOwner) tabs.push({ id: 'settings', label: 'Configuración' });
+  if (isOwner) tabs.push({ id: 'diagnostics', label: 'Diagnóstico' });
 
   const [tab, setTab] = useState<Tab>(tabs[0]?.id ?? 'products');
 
@@ -81,12 +99,18 @@ export function AdminScreen({
         {tab === 'inventory' && (
           <InventoryAdmin store={store} user={user} products={products} onRefresh={onRefreshProducts} />
         )}
+        {tab === 'promotions' && <PromotionsAdmin store={store} products={products} />}
+        {tab === 'expirations' && <ExpirationsAdmin store={store} products={products} />}
         {tab === 'purchases' && (
           <PurchasesAdmin store={store} user={user} products={products} onRefresh={onRefreshProducts} />
         )}
         {tab === 'suppliers' && <SuppliersAdmin store={store} />}
         {tab === 'movements' && <MovementsAdmin products={products} users={users} />}
+        {tab === 'reports' && <ReportsAdmin store={store} />}
         {tab === 'settings' && isOwner && <SettingsAdmin store={store} onSaved={onStoreSaved} />}
+        {tab === 'diagnostics' && isOwner && (
+          <DiagnosticsAdmin store={store} products={products} categories={categories} />
+        )}
       </div>
     </div>
   );

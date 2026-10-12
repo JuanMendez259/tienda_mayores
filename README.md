@@ -1,10 +1,26 @@
-# POS Abarrotes — Punto de venta (Fases 1 y 2)
+# POS Abarrotes — Punto de venta (Fases 1 a 3)
 
 Aplicación web de punto de venta para una tienda de abarrotes en México, con UX pensada para
 personas de la tercera edad. Stack: **React + Vite + TypeScript + Tailwind CSS v4 + Supabase**.
 
-> Estado: **Fase 1 (Base)** y **Fase 2 (Operación)** implementadas. Las integraciones y hardware
-> (sección 8 del SPEC) y la sincronización offline quedan para la Fase 4.
+> Estado: **Fase 1 (Base)**, **Fase 2 (Operación)** y **Fase 3 (Control)** implementadas. Las
+> integraciones y hardware (sección 8 del SPEC) quedan para la Fase 4.
+
+## Novedades de la Fase 3 (Control)
+
+- **F-407:** **promociones** por producto (2×1 o descuento por cantidad) en **Menú → Promociones**;
+  se aplican solas al vender.
+- **F-504:** **alerta de stock bajo** visible en la pantalla de venta y en **Menú → Inventario**.
+- **F-505:** **caducidades por lote** en **Menú → Caducidades**; las compras con caducidad generan
+  lotes y las ventas consumen primero lo más próximo a caducar (**FEFO**).
+- **F-604/F-605:** **reportes** de ventas por día, formas de pago, más vendidos, menor rotación y
+  ganancia estimada, con exportación **CSV** e impresión/**PDF**.
+- **F-705:** **ayuda visual** paso a paso desde el botón **❓ Ayuda** de la venta.
+- **F-706:** **registro de errores** del cliente para soporte.
+- **F-707:** **exportación de datos** (catálogo y ventas) en **Menú → Diagnóstico**.
+- **F-704 / sección 9:** **modo offline** con cola en IndexedDB; al volver la conexión las ventas
+  se envían sin duplicarse (`client_uuid`). El panel **Diagnóstico** muestra conexión, ventas
+  pendientes y botón **Sincronizar ahora**.
 
 ## Novedades de la Fase 2 (Operación)
 
@@ -53,7 +69,8 @@ ver el ticket → **Caja** para el corte. Con un usuario **Dueño** o **Encargad
 ### Con Supabase (Opción A)
 
 1. Crea un proyecto en Supabase y aplica las migraciones
-   `supabase/migrations/0001_init_phase1.sql` y `0002_init_phase2.sql` (SQL Editor o `supabase db push`).
+   `supabase/migrations/0001_init_phase1.sql`, `0002_init_phase2.sql` y `0003_init_phase3.sql`
+   (SQL Editor o `supabase db push`).
 2. Genera un PIN para cada usuario con `crypt('1234', gen_salt('bf'))` en la columna `pin_hash`.
 3. Copia `.env.example` a `.env.local` y define `VITE_SUPABASE_URL` y `VITE_SUPABASE_ANON_KEY`.
 4. Despliega la Edge Function: `supabase functions deploy pos`.
@@ -66,14 +83,15 @@ En la Opción A el cliente **nunca** accede a las tablas (RLS sin políticas). U
 
 ```
 src/
-  lib/          dinero, peso, carrito, inventario, imagen, sonido (+ pruebas)
+  lib/          dinero, peso, carrito, inventario, imagen, sonido, cola offline, errores,
+                exportación de reportes (+ pruebas)
   data/         contrato Repository, semilla, repositorio local y remoto (Supabase)
-  components/   pantallas y piezas de UI (login, venta, carrito, cobros, caja…)
+  components/   pantallas y piezas de UI (login, venta, carrito, cobros, caja, ayuda…)
   types/        types/database.ts (espejo del esquema)
 supabase/
-  migrations/   0001_init_phase1.sql, 0002_init_phase2.sql
+  migrations/   0001_init_phase1.sql, 0002_init_phase2.sql, 0003_init_phase3.sql
   functions/    pos/index.ts (Edge Function, Opción A)
-docs/           SPEC-punto-de-venta.md, DISENO-base-datos-fase1.md y DISENO-base-datos-fase2.md
+docs/           SPEC-punto-de-venta.md y DISENO-base-datos-fase1/2/3.md
 ```
 
 ## Reglas de datos [Requisito]
@@ -98,6 +116,11 @@ F-405, F-501, F-601–F-603 y F-701. Ver `docs/DISENO-base-datos-fase1.md`.
 F-112, F-404, F-408, F-502, F-503, F-506, F-606, F-702 y F-703. Ver
 `docs/DISENO-base-datos-fase2.md`.
 
+## Requisitos de la Fase 3 cubiertos
+
+F-407, F-504, F-505, F-604, F-605, F-705, F-706, F-707 y la parte de internet/sincronización de
+F-704, junto con la sección 9 (modo offline). Ver `docs/DISENO-base-datos-fase3.md`.
+
 ## Supuestos (documentados según SPEC §12)
 
 1. Una sola tienda y una sola caja; el modelo ya incluye `store_id`.
@@ -108,6 +131,9 @@ F-112, F-404, F-408, F-502, F-503, F-506, F-606, F-702 y F-703. Ver
 5. El corte calcula el efectivo esperado desde las ventas en efectivo y los movimientos de caja.
 6. El costo de compra se captura por **unidad de venta** (pieza / kg / L); la cantidad se guarda en
    unidades base (piezas / gramos / mililitros) para el inventario.
-7. Las existencias por **lote/caducidad** y las promociones automáticas (F-407, F-406) son Fase 3;
-   en la Fase 2 la caducidad se registra como dato informativo en la compra.
-8. Los reportes y la impresión/WhatsApp del ticket son Fase 4.
+7. Las existencias por **lote/caducidad** y las promociones automáticas (F-407) se implementan en
+   la Fase 3; en la Fase 2 la caducidad se registraba como dato informativo en la compra.
+8. La impresión/WhatsApp del ticket, el escáner USB y las terminales de pago son Fase 4; los
+   reportes ya están en la Fase 3.
+9. Las promociones (F-407) aplican solo a productos por **pieza**; el descuento se refleja en
+   `sale_item.discount_cents`.

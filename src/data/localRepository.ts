@@ -6,8 +6,11 @@ import type {
   CashSession,
   Category,
   Payment,
+  PaymentMethod,
   Product,
   ProductUpdate,
+  ProductLot,
+  Promotion,
   Purchase,
   PurchaseItem,
   Sale,
@@ -27,6 +30,8 @@ import type {
   NewProductInput,
   NewSupplierInput,
   OpenCashInput,
+  PromotionInput,
+  ReportRange,
   Repository,
   SaleWithItems,
   StockAdjustmentInput,
@@ -63,12 +68,33 @@ function createLocalRepository(): Repository {
   const suppliers = new Map<string, Supplier>();
   const purchases = new Map<string, Purchase>();
   const purchaseItems = new Map<string, PurchaseItem[]>();
+  const promotions = new Map<string, Promotion>(); // por product_id (único)
+  const lots = new Map<string, ProductLot>();
   const auditLogs: AuditLog[] = [];
   const stockMovements: StockMovement[] = [];
   let saleCounter = 0;
 
   function stockDelta(item: SaleItem): number {
     return item.weight_grams != null ? -item.weight_grams : -item.qty;
+  }
+
+  /** Consume lotes en orden FEFO (primero en caducar) para una salida (F-505). */
+  function consumeLotsFefo(productId: string, qtyBase: number): void {
+    let remaining = qtyBase;
+    const productLots = [...lots.values()]
+      .filter((lot) => lot.product_id === productId && lot.qty > 0)
+      .sort((a, b) => {
+        const ae = a.expires_on ?? '9999-12-31';
+        const be = b.expires_on ?? '9999-12-31';
+        if (ae !== be) return ae < be ? -1 : 1;
+        return a.received_at.localeCompare(b.received_at);
+      });
+    for (const lot of productLots) {
+      if (remaining <= 0) break;
+      const take = Math.min(lot.qty, remaining);
+      lots.set(lot.id, { ...lot, qty: lot.qty - take, updated_at: nowIso() });
+      remaining -= take;
+    }
   }
 
   function persistSale(
@@ -94,6 +120,7 @@ function createLocalRepository(): Repository {
         if (product && product.track_stock) {
           product.stock_qty = Math.max(0, product.stock_qty + stockDelta(item));
         }
+        consumeLotsFefo(item.product_id, Math.abs(stockDelta(item)));
         stockMovements.push({
           id: uid(),
           store_id: sale.store_id,
@@ -103,6 +130,7 @@ function createLocalRepository(): Repository {
           reason: `Venta #${sale.number}`,
           user_id: sale.user_id,
           sale_id: sale.id,
+          lot_id: null,
           created_at: nowIso(),
         });
       }
@@ -273,6 +301,19 @@ function createLocalRepository(): Repository {
             updated_at: nowIso(),
           });
         }
+        const lot: ProductLot = {
+          id: uid(),
+          store_id: purchase.store_id,
+          product_id: item.product_id,
+          qty: item.qty,
+          expires_on: item.expires_on,
+          received_at: purchase.created_at,
+          supplier_id: purchase.supplier_id,
+          purchase_id: purchase.id,
+          created_at: nowIso(),
+          updated_at: nowIso(),
+        };
+        lots.set(lot.id, lot);
         stockMovements.push({
           id: uid(),
           store_id: purchase.store_id,
@@ -282,6 +323,7 @@ function createLocalRepository(): Repository {
           reason: `Compra ${purchase.invoice_ref ?? purchase.id.slice(0, 8)}`,
           user_id: purchase.user_id,
           sale_id: null,
+          lot_id: lot.id,
           created_at: nowIso(),
         });
       }
@@ -313,9 +355,11 @@ function createLocalRepository(): Repository {
         reason: input.reason,
         user_id: input.user_id,
         sale_id: null,
+        lot_id: null,
         created_at: nowIso(),
       };
       stockMovements.push(movement);
+      if (input.delta < 0) consumeLotsFefo(input.product_id, -input.delta);
       return clone(movement);
     },
     async listStockMovements(filter?: StockMovementFilter) {
@@ -333,12 +377,127 @@ function createLocalRepository(): Repository {
       );
     },
 
+    async listPromotions() {
+      return clone([...promotions.values()]);
+    },
+    async savePromotion(input: PromotionInput) {
+      const current = promotions.get(input.product_id);
+      const promotion: Promotion = {
+        id: current?.id ?? uid(),
+        store_id: input.store_id,
+        product_id: input.product_id,
+        type: input.type,
+        min_qty: input.min_qty,
+        discount_cents: input.discount_cents,
+        active: input.active,
+        created_at: current?.created_at ?? nowIso(),
+        updated_at: nowIso(),
+      };
+      promotions.set(promotion.product_id, promotion);
+      return clone(promotion);
+    },
+    async deletePromotion(id: string) {
+      for (const [productId, promotion] of promotions) {
+        if (promotion.id === id) promotions.delete(productId);
+      }
+    },
+
+    async listExpiringLots(days: number) {
+      const limit = new Date();
+      limit.setDate(limit.getDate() + days);
+      const limitIso = limit.toISOString().slice(0, 10);
+      return clone(
+        [...lots.values()]
+          .filter((lot) => lot.qty > 0 && lot.expires_on !== null && lot.expires_on <= limitIso)
+          .sort((a, b) => (a.expires_on ?? '').localeCompare(b.expires_on ?? '')),
+      );
+    },
+
+    async getReport(range: ReportRange) {
+      const paid = [...sales.values()].filter(
+        (s) =>
+          s.status === 'paid' &&
+          s.created_at >= range.from &&
+          s.created_at <= range.to,
+      );
+      const byDayMap = new Map<string, { totalCents: number; count: number }>();
+      const byMethodMap = new Map<PaymentMethod, { totalCents: number; count: number }>();
+      const byProduct = new Map<string, { qty: number; totalCents: number }>();
+      let totalSalesCents = 0;
+      let profitCents = 0;
+
+      for (const sale of paid) {
+        totalSalesCents += sale.total_cents;
+        const day = sale.created_at.slice(0, 10);
+        const dayEntry = byDayMap.get(day) ?? { totalCents: 0, count: 0 };
+        dayEntry.totalCents += sale.total_cents;
+        dayEntry.count += 1;
+        byDayMap.set(day, dayEntry);
+
+        for (const payment of paymentsBySale.get(sale.id) ?? []) {
+          const methodEntry = byMethodMap.get(payment.method) ?? { totalCents: 0, count: 0 };
+          methodEntry.totalCents += payment.amount_cents;
+          methodEntry.count += 1;
+          byMethodMap.set(payment.method, methodEntry);
+        }
+
+        for (const item of itemsBySale.get(sale.id) ?? []) {
+          const product = products.get(item.product_id);
+          const saleQty = item.weight_grams != null ? item.weight_grams / 1000 : item.qty;
+          const entry = byProduct.get(item.product_id) ?? { qty: 0, totalCents: 0 };
+          entry.qty += saleQty;
+          entry.totalCents += item.line_total_cents - item.discount_cents;
+          byProduct.set(item.product_id, entry);
+
+          const cost = (product?.cost_cents ?? 0) * saleQty;
+          profitCents += (item.line_total_cents - item.discount_cents) - cost;
+        }
+      }
+
+      const productsSorted = [...byProduct.entries()]
+        .map(([productId, value]) => ({
+          productId,
+          name: products.get(productId)?.name ?? 'Producto',
+          qty: value.qty,
+          totalCents: value.totalCents,
+        }))
+        .sort((a, b) => b.qty - a.qty);
+
+      const soldIds = new Set(byProduct.keys());
+      const notSold = [...products.values()]
+        .filter((p) => p.active && !soldIds.has(p.id))
+        .map((p) => ({ productId: p.id, name: p.name, qty: 0 }));
+      const lowRotation = [
+        ...productsSorted.slice(-10).reverse(),
+        ...notSold,
+      ].slice(0, 10);
+
+      return {
+        from: range.from,
+        to: range.to,
+        salesCount: paid.length,
+        totalSalesCents,
+        profitCents,
+        byDay: [...byDayMap.entries()]
+          .map(([date, value]) => ({ date, ...value }))
+          .sort((a, b) => a.date.localeCompare(b.date)),
+        byPaymentMethod: [...byMethodMap.entries()].map(([method, value]) => ({ method, ...value })),
+        topProducts: productsSorted.slice(0, 10),
+        lowRotation,
+      };
+    },
+
     async updateStore(patch: StoreUpdate) {
       Object.assign(store, patch, { updated_at: nowIso() });
       return clone(store);
     },
 
     async checkout(input: CheckoutInput) {
+      // Idempotencia de ventas offline: si ya existe el client_uuid, devolver la venta.
+      const existing = [...sales.values()].find((s) => s.client_uuid === input.client_uuid);
+      if (existing) {
+        return { sale: clone(existing), items: clone(itemsBySale.get(existing.id) ?? []) };
+      }
       const base: Omit<Sale, 'id' | 'number' | 'created_at'> = {
         store_id: input.store_id,
         user_id: input.user_id,

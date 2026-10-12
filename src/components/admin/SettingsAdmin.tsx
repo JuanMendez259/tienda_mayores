@@ -34,6 +34,7 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
   const [primaryColor, setPrimaryColor] = useState(store.primary_color);
   const [discountRequiresManager, setDiscountRequiresManager] = useState(store.discount_requires_manager);
   const [modules, setModules] = useState<StoreModules>(store.modules);
+  const [expiryDays, setExpiryDays] = useState(store.expiry_alert_days);
   const [capturaOpen, setCapturaOpen] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -49,6 +50,7 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
       primary_color: primaryColor,
       discount_requires_manager: discountRequiresManager,
       modules,
+      expiry_alert_days: expiryDays,
     });
     setSaved(true);
     onSaved(updated);
@@ -88,6 +90,20 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
               className="h-[56px] w-full rounded-2xl border-2 border-slate-300 px-2"
             />
           </div>
+        </div>
+
+        <div className="mb-3">
+          <label className={label} htmlFor="st-expiry">Aviso de caducidad</label>
+          <select
+            id="st-expiry"
+            value={expiryDays}
+            onChange={(e) => setExpiryDays(Number(e.target.value))}
+            className={field}
+          >
+            <option value={7}>7 días antes</option>
+            <option value={15}>15 días antes</option>
+            <option value={30}>30 días antes</option>
+          </select>
         </div>
 
         <label className="mb-4 flex items-center gap-3 text-lg">

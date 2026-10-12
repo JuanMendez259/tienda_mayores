@@ -14,6 +14,7 @@ function item(overrides: Partial<CartItem>): CartItem {
     measure: null,
     lineTotalCents: 1000,
     discountCents: 0,
+    promoDiscountCents: 0,
     ...overrides,
   };
 }

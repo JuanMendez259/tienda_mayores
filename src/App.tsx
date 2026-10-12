@@ -7,6 +7,8 @@ import { SaleScreen } from './components/SaleScreen';
 import { CashPanel } from './components/CashPanel';
 import { AdminScreen } from './components/admin/AdminScreen';
 import { CapturaScreen } from './components/CapturaScreen';
+import { flushPendingSales } from './lib/sync';
+import { installErrorHandlers, logError } from './lib/errorLog';
 
 type Stage = 'loading' | 'login' | 'openCash' | 'ready' | 'error';
 
@@ -28,6 +30,7 @@ function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [cashPanelOpen, setCashPanelOpen] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
+  const [promotionsKey, setPromotionsKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
 
@@ -46,6 +49,10 @@ function App() {
       window.removeEventListener('online', goOnline);
       window.removeEventListener('offline', goOffline);
     };
+  }, []);
+
+  useEffect(() => {
+    installErrorHandlers();
   }, []);
 
   useEffect(() => {
@@ -77,6 +84,21 @@ function App() {
   const refreshProducts = useCallback(() => {
     void repository.listProducts().then(setProducts);
   }, []);
+
+  // Al recuperar la conexión, enviar las ventas pendientes y refrescar el catálogo (F-704).
+  useEffect(() => {
+    if (!online) return;
+    void (async () => {
+      try {
+        const result = await flushPendingSales();
+        if (result.sent > 0) {
+          refreshProducts();
+        }
+      } catch (cause) {
+        logError(cause, 'sync-effect');
+      }
+    })();
+  }, [online, refreshProducts]);
 
   async function handleLogin(selected: AppUser) {
     setUser(selected);
@@ -154,6 +176,7 @@ function App() {
             cashSession={cashSession}
             products={products}
             categories={categories}
+            promotionsKey={promotionsKey}
             onRefreshProducts={refreshProducts}
             onOpenCash={() => setCashPanelOpen(true)}
             onOpenAdmin={() => setAdminOpen(true)}
@@ -173,7 +196,10 @@ function App() {
               users={users}
               products={products}
               categories={categories}
-              onClose={() => setAdminOpen(false)}
+              onClose={() => {
+                setAdminOpen(false);
+                setPromotionsKey((key) => key + 1);
+              }}
               onRefreshProducts={refreshProducts}
               onStoreSaved={setStore}
             />

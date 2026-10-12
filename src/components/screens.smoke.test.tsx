@@ -53,6 +53,7 @@ describe('render de pantallas (smoke)', () => {
         cashSession={session}
         products={seedProducts}
         categories={seedCategories}
+        promotionsKey={0}
         onRefreshProducts={noop}
         onOpenCash={noop}
         onOpenAdmin={noop}

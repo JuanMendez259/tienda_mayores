@@ -1,14 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import type { Product } from '../types/database';
+import type { Product, Promotion } from '../types/database';
 import {
   addMeasure,
   addPiece,
+  applyAutoPromotions,
   cartDiscountCents,
   cartItemCount,
+  cartPromoDiscountCents,
   cartSubtotalCents,
   cartTotalCents,
   changeQty,
   netLineTotal,
+  promoDiscountFor,
+  promotionLabel,
   removeItem,
   setLineDiscount,
   setMeasure,
@@ -113,5 +117,65 @@ describe('descuentos por renglón (F-112)', () => {
     expect(cart[0].discountCents).toBe(2000);
     cart = changeQty(cart, cart[0].key, -1);
     expect(cart[0].discountCents).toBe(1000);
+  });
+});
+
+function promotion(overrides: Partial<Promotion>): Promotion {
+  return {
+    id: 'promo-1',
+    store_id: 's1',
+    product_id: 'a',
+    type: 'bogo',
+    min_qty: 2,
+    discount_cents: 0,
+    active: true,
+    created_at: '2026-01-01T00:00:00Z',
+    updated_at: '2026-01-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+describe('promociones automáticas (F-407)', () => {
+  it('aplica 2×1: por cada 2 piezas, una gratis', () => {
+    const promo = promotion({ type: 'bogo' });
+    let cart = addPiece([], product({ id: 'a', price_cents: 1000 }));
+    expect(promoDiscountFor(cart[0], promo)).toBe(0);
+    cart = addPiece(cart, product({ id: 'a', price_cents: 1000 }));
+    expect(promoDiscountFor(cart[0], promo)).toBe(1000);
+    cart = addPiece(cart, product({ id: 'a', price_cents: 1000 }));
+    expect(promoDiscountFor(cart[0], promo)).toBe(1000);
+  });
+
+  it('aplica descuento por cantidad solo al alcanzar el mínimo', () => {
+    const promo = promotion({ type: 'qty_discount', min_qty: 3, discount_cents: 500 });
+    const cart = addPiece([], product({ id: 'a', price_cents: 1000 }));
+    expect(promoDiscountFor(cart[0], promo)).toBe(0);
+    const three = [1, 2, 3].reduce((acc) => addPiece(acc, product({ id: 'a', price_cents: 1000 })), cart);
+    expect(promoDiscountFor(three[0], promo)).toBe(500);
+  });
+
+  it('no aplica promociones a productos por peso', () => {
+    const promo = promotion({ type: 'bogo' });
+    const cart = addMeasure([], product({ id: 'a', sale_unit: 'weight', price_cents: 1000 }), 2000);
+    expect(promoDiscountFor(cart[0], promo)).toBe(0);
+  });
+
+  it('recalcula el carrito y suma el descuento promocional', () => {
+    let cart = addPiece([], product({ id: 'a', price_cents: 1000 }));
+    cart = addPiece(cart, product({ id: 'a', price_cents: 1000 }));
+    cart = applyAutoPromotions(cart, [promotion({ type: 'bogo' })]);
+    expect(cart[0].promoDiscountCents).toBe(1000);
+    expect(cartPromoDiscountCents(cart)).toBe(1000);
+    expect(cartDiscountCents(cart)).toBe(1000);
+    expect(cartSubtotalCents(cart)).toBe(2000);
+    expect(cartTotalCents(cart)).toBe(1000);
+    expect(promotionLabel(cart[0], promotion({ type: 'bogo' }))).toBe('2×1');
+  });
+
+  it('ignora promociones inactivas', () => {
+    let cart = addPiece([], product({ id: 'a', price_cents: 1000 }));
+    cart = addPiece(cart, product({ id: 'a', price_cents: 1000 }));
+    cart = applyAutoPromotions(cart, [promotion({ type: 'bogo', active: false })]);
+    expect(cart[0].promoDiscountCents).toBe(0);
   });
 });

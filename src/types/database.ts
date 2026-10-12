@@ -25,6 +25,7 @@ export type StockMovementType = 'sale' | 'purchase' | 'adjustment' | 'waste' | '
 export type PaymentMethod = 'cash' | 'card_clip' | 'mercadopago_qr' | 'mercadopago_terminal';
 export type CashMovementType = 'withdrawal' | 'deposit';
 export type FontSize = 'normal' | 'grande' | 'muy_grande';
+export type PromotionType = 'bogo' | 'qty_discount';
 
 /** Secciones que el dueño puede mostrar u ocultar (F-703). */
 export interface StoreModules {
@@ -49,6 +50,8 @@ export interface Store {
   primary_color: string;
   discount_requires_manager: boolean;
   modules: StoreModules;
+  /** Días de aviso de caducidad: 7, 15 o 30 (F-505). */
+  expiry_alert_days: number;
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +117,8 @@ export interface StockMovement {
   reason: string | null;
   user_id: string | null;
   sale_id: string | null;
+  /** Lote afectado (F-505), o null. */
+  lot_id: string | null;
   created_at: string;
 }
 
@@ -221,6 +226,32 @@ export interface PurchaseItem {
   expires_on: string | null;
 }
 
+export interface Promotion {
+  id: string;
+  store_id: string;
+  product_id: string;
+  type: PromotionType;
+  min_qty: number;
+  discount_cents: Cents;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductLot {
+  id: string;
+  store_id: string;
+  product_id: string;
+  qty: number;
+  /** Caducidad en formato YYYY-MM-DD, o null si no caduca. */
+  expires_on: string | null;
+  received_at: string;
+  supplier_id: string | null;
+  purchase_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 // ------------------------------------------------------------
 // Tipos Insert / Update
 // Columnas con default o generadas por la BD son opcionales al insertar.
@@ -285,6 +316,12 @@ export type PurchaseUpdate = Update<Purchase>;
 export type PurchaseItemInsert = Insert<PurchaseItem, 'id' | 'unit_cost_cents' | 'expires_on'>;
 export type PurchaseItemUpdate = Update<PurchaseItem>;
 
+export type PromotionInsert = Insert<Promotion, 'id' | 'min_qty' | 'discount_cents' | 'active' | 'created_at' | 'updated_at'>;
+export type PromotionUpdate = Update<Promotion>;
+
+export type ProductLotInsert = Insert<ProductLot, 'id' | 'qty' | 'expires_on' | 'received_at' | 'supplier_id' | 'purchase_id' | 'created_at' | 'updated_at'>;
+export type ProductLotUpdate = Update<ProductLot>;
+
 /** Mapa de tablas -> Row/Insert/Update (para tipar el cliente de Supabase). */
 export interface Database {
   public: {
@@ -303,6 +340,8 @@ export interface Database {
       supplier:       { Row: Supplier;      Insert: SupplierInsert;      Update: SupplierUpdate };
       purchase:       { Row: Purchase;      Insert: PurchaseInsert;      Update: PurchaseUpdate };
       purchase_item:  { Row: PurchaseItem;  Insert: PurchaseItemInsert;  Update: PurchaseItemUpdate };
+      promotion:      { Row: Promotion;     Insert: PromotionInsert;     Update: PromotionUpdate };
+      product_lot:    { Row: ProductLot;    Insert: ProductLotInsert;    Update: ProductLotUpdate };
     };
     Functions: {
       /** Valida el PIN y aplica el límite de intentos. Solo backend. */

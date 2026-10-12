@@ -11,6 +11,8 @@ export interface TicketLine {
 
 export interface TicketData {
   number: number;
+  /** Venta guardada sin conexión, pendiente de enviar (F-704). */
+  pending?: boolean;
   dateIso: string;
   lines: TicketLine[];
   subtotalCents: number;
@@ -37,8 +39,15 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
       <div className="card max-h-[92vh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
         <div className="mb-4 border-b border-dashed border-slate-400 pb-4 text-center">
           <h2 className="text-2xl font-extrabold">{store.name}</h2>
-          <p className="text-lg text-slate-600">Ticket #{data.number}</p>
+          <p className="text-lg text-slate-600">
+            {data.pending ? 'Venta sin conexión' : `Ticket #${data.number}`}
+          </p>
           <p className="text-base text-slate-500">{fecha}</p>
+          {data.pending && (
+            <p className="mt-2 rounded-xl bg-amber-100 p-2 text-base font-semibold text-amber-900">
+              Se enviará al recuperar la conexión.
+            </p>
+          )}
         </div>
 
         <ul className="mb-4 space-y-3">

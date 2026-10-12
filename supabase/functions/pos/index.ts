@@ -63,6 +63,27 @@ async function cashSummary(sessionId: string) {
   };
 }
 
+// Consume lotes existentes en orden FEFO (primero en caducar) para una salida (F-505).
+async function consumeLotsFefo(productId: string, qtyBase: number): Promise<void> {
+  let remaining = qtyBase;
+  const { data: lots } = await db
+    .from('product_lot')
+    .select('id, qty, expires_on, received_at')
+    .eq('product_id', productId)
+    .gt('qty', 0)
+    .order('expires_on', { ascending: true, nullsFirst: false })
+    .order('received_at', { ascending: true });
+  for (const lot of lots ?? []) {
+    if (remaining <= 0) break;
+    const take = Math.min(lot.qty, remaining);
+    await db
+      .from('product_lot')
+      .update({ qty: lot.qty - take })
+      .eq('id', lot.id);
+    remaining -= take;
+  }
+}
+
 // Estructura mínima del cuerpo de cada llamada.
 interface Body {
   action: string;
@@ -141,10 +162,27 @@ Deno.serve(async (request) => {
 
       case 'checkout': {
         const input = body.input as Record<string, unknown> & {
+          client_uuid: string;
           lines: Array<Record<string, unknown>>;
           payments: Array<Record<string, unknown>>;
         };
         const { lines, payments, ...sale } = input;
+
+        // Idempotencia de ventas offline (Fase 3): si ya existe el client_uuid,
+        // devolver la venta existente sin duplicar.
+        const { data: existing } = await db
+          .from('sale')
+          .select('*')
+          .eq('client_uuid', sale.client_uuid)
+          .maybeSingle();
+        if (existing) {
+          const { data: existingItems } = await db
+            .from('sale_item')
+            .select('*')
+            .eq('sale_id', existing.id);
+          return json({ sale: existing, items: existingItems ?? [] });
+        }
+
         const { data: created, error: saleError } = await db
           .from('sale')
           .insert({ ...sale, status: 'paid', paid_at: new Date().toISOString() })
@@ -164,7 +202,7 @@ Deno.serve(async (request) => {
           .insert(payments.map((p) => ({ ...p, sale_id: saleId })));
         if (payError) throw payError;
 
-        // Descuento de inventario + movimientos (F-501).
+        // Descuento de inventario + movimientos (F-501) + consumo FEFO de lotes (F-505).
         for (const item of items) {
           const delta =
             item.weight_grams != null ? -item.weight_grams : -item.qty;
@@ -178,6 +216,7 @@ Deno.serve(async (request) => {
               .from('product')
               .update({ stock_qty: Math.max(0, product.stock_qty + delta) })
               .eq('id', item.product_id);
+            await consumeLotsFefo(item.product_id, Math.abs(delta));
           }
           await db.from('stock_movement').insert({
             store_id: sale.store_id,
@@ -386,6 +425,19 @@ Deno.serve(async (request) => {
               })
               .eq('id', item.product_id);
           }
+          // Lote con caducidad (F-505).
+          const { data: lot } = await db
+            .from('product_lot')
+            .insert({
+              store_id: purchase.store_id,
+              product_id: item.product_id,
+              qty: item.qty,
+              expires_on: item.expires_on,
+              supplier_id: purchase.supplier_id,
+              purchase_id: purchase.id,
+            })
+            .select('*')
+            .single();
           await db.from('stock_movement').insert({
             store_id: purchase.store_id,
             product_id: item.product_id,
@@ -393,6 +445,7 @@ Deno.serve(async (request) => {
             qty: item.qty,
             reason: `Compra ${purchase.invoice_ref ?? ''}`.trim(),
             user_id: purchase.user_id,
+            lot_id: lot?.id ?? null,
           });
         }
         return json({ purchase, items: created });
@@ -460,6 +513,131 @@ Deno.serve(async (request) => {
         const { data, error } = await query;
         if (error) throw error;
         return json(data);
+      }
+
+      case 'listPromotions': {
+        const { data, error } = await db.from('promotion').select('*').eq('active', true);
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'savePromotion': {
+        const input = body.input as { product_id: string };
+        const { data, error } = await db
+          .from('promotion')
+          .upsert(input, { onConflict: 'product_id' })
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'deletePromotion': {
+        const { error } = await db.from('promotion').delete().eq('id', body.id);
+        if (error) throw error;
+        return json(true);
+      }
+
+      case 'listExpiringLots': {
+        const days = Number(body.days) || 15;
+        const limit = new Date();
+        limit.setDate(limit.getDate() + days);
+        const { data, error } = await db
+          .from('product_lot')
+          .select('*')
+          .gt('qty', 0)
+          .not('expires_on', 'is', null)
+          .lte('expires_on', limit.toISOString().slice(0, 10))
+          .order('expires_on', { ascending: true });
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'getReport': {
+        const range = body.range as { from: string; to: string };
+        const { data: sales, error } = await db
+          .from('sale')
+          .select('*, items:sale_item(*), payments:payment(*)')
+          .eq('status', 'paid')
+          .gte('created_at', range.from)
+          .lte('created_at', range.to);
+        if (error) throw error;
+        const { data: allProducts } = await db
+          .from('product')
+          .select('id, name, cost_cents, sale_unit, active');
+        const productById = new Map(
+          (allProducts ?? []).map((p: { id: string }) => [p.id, p]),
+        );
+
+        const byDayMap = new Map<string, { totalCents: number; count: number }>();
+        const byMethodMap = new Map<string, { totalCents: number; count: number }>();
+        const byProduct = new Map<string, { qty: number; totalCents: number }>();
+        let totalSalesCents = 0;
+        let profitCents = 0;
+
+        for (const sale of sales ?? []) {
+          totalSalesCents += sale.total_cents;
+          const day = (sale.created_at as string).slice(0, 10);
+          const dayEntry = byDayMap.get(day) ?? { totalCents: 0, count: 0 };
+          dayEntry.totalCents += sale.total_cents;
+          dayEntry.count += 1;
+          byDayMap.set(day, dayEntry);
+
+          for (const payment of sale.payments ?? []) {
+            const m = byMethodMap.get(payment.method) ?? { totalCents: 0, count: 0 };
+            m.totalCents += payment.amount_cents;
+            m.count += 1;
+            byMethodMap.set(payment.method, m);
+          }
+
+          for (const item of sale.items ?? []) {
+            const product = productById.get(item.product_id) as
+              | { cost_cents: number; sale_unit: string; name: string }
+              | undefined;
+            const saleQty =
+              item.weight_grams != null ? item.weight_grams / 1000 : item.qty;
+            const entry = byProduct.get(item.product_id) ?? { qty: 0, totalCents: 0 };
+            entry.qty += saleQty;
+            entry.totalCents += item.line_total_cents - item.discount_cents;
+            byProduct.set(item.product_id, entry);
+            profitCents +=
+              item.line_total_cents -
+              item.discount_cents -
+              (product?.cost_cents ?? 0) * saleQty;
+          }
+        }
+
+        const productsSorted = [...byProduct.entries()]
+          .map(([productId, value]) => ({
+            productId,
+            name: (productById.get(productId) as { name: string } | undefined)?.name ?? 'Producto',
+            qty: value.qty,
+            totalCents: value.totalCents,
+          }))
+          .sort((a, b) => b.qty - a.qty);
+
+        const soldIds = new Set(byProduct.keys());
+        const notSold = (allProducts ?? [])
+          .filter((p: { id: string; active: boolean }) => p.active && !soldIds.has(p.id))
+          .map((p: { id: string; name: string }) => ({ productId: p.id, name: p.name, qty: 0 }));
+        const lowRotation = [...productsSorted.slice(-10).reverse(), ...notSold].slice(0, 10);
+
+        return json({
+          from: range.from,
+          to: range.to,
+          salesCount: (sales ?? []).length,
+          totalSalesCents,
+          profitCents,
+          byDay: [...byDayMap.entries()]
+            .map(([date, value]) => ({ date, ...value }))
+            .sort((a, b) => a.date.localeCompare(b.date)),
+          byPaymentMethod: [...byMethodMap.entries()].map(([method, value]) => ({
+            method,
+            ...value,
+          })),
+          topProducts: productsSorted.slice(0, 10),
+          lowRotation,
+        });
       }
 
       case 'updateStore': {
