@@ -26,13 +26,24 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
     if (!selected || pin.length < 4 || checking) return;
     setChecking(true);
     setError(null);
-    const ok = await repository.verifyPin(selected.id, pin);
-    setChecking(false);
-    if (ok) {
-      onLogin(selected);
-    } else {
+    try {
+      const ok = await repository.verifyPin(selected.id, pin);
+      if (ok) {
+        onLogin(selected);
+        return;
+      }
       setPin('');
       setError('PIN incorrecto. Vuelve a intentarlo.');
+    } catch (cause) {
+      setPin('');
+      setError(
+        cause instanceof Error && cause.message
+          ? `No se pudo verificar el PIN: ${cause.message}`
+          : 'No se pudo conectar con el servidor. Revisa la red e intenta de nuevo.',
+      );
+    } finally {
+      // Pase lo que pase, el botón vuelve a estar disponible.
+      setChecking(false);
     }
   }
 

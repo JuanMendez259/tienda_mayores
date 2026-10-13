@@ -8,9 +8,15 @@ const url = Deno.env.get('SUPABASE_URL')!;
 const serviceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const db = createClient(url, serviceKey, { auth: { persistSession: false } });
 
+// Cabeceras CORS: la app (Vercel) y la tablet llaman desde otro origen.
+// `*` permite cualquier origen; se incluyen métodos y cabeceras para superar
+// el preflight OPTIONS del navegador.
 const cors = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers':
+    'authorization, x-client-info, apikey, content-type, x-supabase-api-version',
+  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 };
 
 function json(body: unknown, status = 200): Response {
@@ -22,6 +28,19 @@ function json(body: unknown, status = 200): Response {
 
 function fail(message: string, status = 400): Response {
   return json({ error: message }, status);
+}
+
+/** Extrae un texto legible de cualquier cosa lanzada (Error, PostgrestError, etc.). */
+function errorText(cause: unknown): string {
+  if (cause instanceof Error) return cause.message;
+  if (typeof cause === 'object' && cause !== null) {
+    const e = cause as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [e.message, e.details, e.hint, e.code]
+      .filter((part) => typeof part === 'string' && part.length > 0)
+      .map(String);
+    if (parts.length > 0) return parts.join(' | ');
+  }
+  return String(cause);
 }
 
 // Calcula el resumen de caja (F-603) reutilizado por corte y consulta.
@@ -91,7 +110,13 @@ interface Body {
 }
 
 Deno.serve(async (request) => {
-  if (request.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  // Preflight CORS: responder de inmediato (200) con las cabeceras.
+  if (request.method === 'OPTIONS') {
+    return new Response('ok', {
+      status: 200,
+      headers: { ...cors, 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
 
   let body: Body;
   try {
@@ -671,7 +696,6 @@ Deno.serve(async (request) => {
         return fail(`Acción desconocida: ${body.action}`, 404);
     }
   } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
-    return fail(detail, 500);
+    return fail(errorText(cause), 500);
   }
 });

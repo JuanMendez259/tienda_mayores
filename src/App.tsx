@@ -102,20 +102,32 @@ function App() {
 
   async function handleLogin(selected: AppUser) {
     setUser(selected);
-    const session = await repository.getOpenCashSession(selected.store_id);
-    if (session) {
-      setCashSession(session);
-      await loadCatalog();
-      setStage('ready');
-    } else {
-      setStage('openCash');
+    try {
+      const session = await repository.getOpenCashSession(selected.store_id);
+      if (session) {
+        setCashSession(session);
+        await loadCatalog();
+        setStage('ready');
+      } else {
+        setStage('openCash');
+      }
+    } catch (cause) {
+      logError(cause, 'login');
+      setError(cause instanceof Error ? cause.message : 'No se pudo entrar.');
+      setStage('error');
     }
   }
 
   async function handleOpened(session: CashSession) {
     setCashSession(session);
-    await loadCatalog();
-    setStage('ready');
+    try {
+      await loadCatalog();
+      setStage('ready');
+    } catch (cause) {
+      logError(cause, 'open-cash');
+      setError(cause instanceof Error ? cause.message : 'No se pudo cargar el catálogo.');
+      setStage('error');
+    }
   }
 
   function handleLogout() {

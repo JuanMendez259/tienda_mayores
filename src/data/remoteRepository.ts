@@ -33,12 +33,16 @@ import type {
   StockMovementFilter,
 } from './repository';
 
+/** Tiempo máximo por llamada al servidor antes de abortar (evita cuelgues). */
+const REQUEST_TIMEOUT_MS = 15000;
+
 async function call<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   if (!supabase) throw new Error('Supabase no está configurado');
   const { data, error } = await supabase.functions.invoke('pos', {
     body: { action, ...payload },
+    timeout: REQUEST_TIMEOUT_MS,
   });
-  if (error) throw new Error(error.message || 'No se pudo conectar con el servidor');
+  if (error) throw new Error(error.message || `No se pudo conectar con el servidor (${action})`);
   return data as T;
 }
 
