@@ -30,13 +30,13 @@ export function NumericKeypad({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="mx-auto grid w-full max-w-[320px] grid-cols-3 gap-3">
+      <div className="mx-auto grid w-full max-w-[320px] grid-cols-3 gap-2">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
           <button
             key={digit}
             type="button"
             onClick={() => press(digit)}
-            className="btn btn-neutral aspect-square p-0 text-3xl"
+            className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
           >
             {digit}
           </button>
@@ -44,7 +44,7 @@ export function NumericKeypad({
         <button
           type="button"
           onClick={() => (allowDecimal ? press('.') : clear())}
-          className="btn btn-neutral aspect-square p-0 text-3xl"
+          className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
           aria-label={allowDecimal ? 'Punto decimal' : 'Borrar todo'}
         >
           {allowDecimal ? '.' : 'C'}
@@ -52,14 +52,14 @@ export function NumericKeypad({
         <button
           type="button"
           onClick={() => press('0')}
-          className="btn btn-neutral aspect-square p-0 text-3xl"
+          className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
         >
           0
         </button>
         <button
           type="button"
           onClick={backspace}
-          className="btn btn-neutral aspect-square p-0 text-3xl"
+          className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
           aria-label="Borrar"
         >
           ⌫
@@ -70,7 +70,7 @@ export function NumericKeypad({
           type="button"
           onClick={onConfirm}
           disabled={confirmDisabled}
-          className={`btn mx-auto w-full max-w-[320px] py-5 text-2xl text-white ${
+          className={`btn mx-auto w-full max-w-[320px] py-4 text-2xl text-white ${
             confirmDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
           } ${confirmDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
         >

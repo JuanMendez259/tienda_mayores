@@ -48,12 +48,12 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
-      <header className="mb-8 flex flex-col items-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-4">
+      <header className="mb-2 flex flex-col items-center">
         {store.logo_url && (
-          <img src={store.logo_url} alt="" className="mb-2 h-20 w-20 rounded-2xl" />
+          <img src={store.logo_url} alt="" className="mb-1 h-14 w-14 rounded-2xl" />
         )}
-        <h1 className="title text-center text-3xl">{store.name}</h1>
+        <h1 className="title text-center text-2xl">{store.name}</h1>
         <p className="text-lg text-slate-600">
           {selected ? 'Escribe tu PIN y toca Entrar' : 'Selecciona tu nombre'}
         </p>
@@ -81,19 +81,19 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
           ))}
         </div>
       ) : (
-        <div className="card mx-auto w-full max-w-md p-6">
-          <div className="mb-6 flex items-center gap-4">
+        <div className="card mx-auto w-full max-w-md p-4 py-3 sm:p-6">
+          <div className="mb-2 flex items-center gap-3">
             {selected.photo_url && (
-              <img src={selected.photo_url} alt="" className="h-20 w-20 rounded-full" />
+              <img src={selected.photo_url} alt="" className="h-14 w-14 rounded-full" />
             )}
-            <div>
-              <p className="text-2xl font-bold">{selected.name}</p>
+            <div className="min-w-0">
+              <p className="truncate text-2xl font-bold">{selected.name}</p>
               <p className="text-lg text-slate-500">{roleLabel[selected.role]}</p>
             </div>
           </div>
 
           <div
-            className="mb-4 flex h-16 items-center justify-center gap-3 rounded-2xl bg-slate-100"
+            className="mb-3 flex h-14 items-center justify-center gap-3 rounded-2xl bg-slate-100"
             aria-label="PIN"
           >
             {Array.from({ length: Math.max(4, pin.length) }).map((_, index) => (
@@ -105,7 +105,7 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
           </div>
 
           {error && (
-            <p className="mb-4 rounded-xl bg-red-100 p-3 text-center text-lg font-semibold text-red-800">
+            <p className="mb-3 rounded-xl bg-red-100 p-3 text-center text-lg font-semibold text-red-800">
               {error}
             </p>
           )}
@@ -127,7 +127,7 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
               setPin('');
               setError(null);
             }}
-            className="btn btn-neutral mt-4 w-full py-4 text-xl"
+            className="btn btn-neutral mt-2 w-full py-3 text-xl"
           >
             ← Cambiar usuario
           </button>
