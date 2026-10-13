@@ -81,7 +81,7 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
           ))}
         </div>
       ) : (
-        <div className="card w-full max-w-md p-6">
+        <div className="card mx-auto w-full max-w-md p-6">
           <div className="mb-6 flex items-center gap-4">
             {selected.photo_url && (
               <img src={selected.photo_url} alt="" className="h-20 w-20 rounded-full" />
