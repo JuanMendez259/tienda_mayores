@@ -26,21 +26,25 @@ export function ProductGrid({ products, categories, onPick, onNewProduct }: Prod
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex gap-2 p-3 pb-2">
+      <div className="flex w-full items-center gap-2 p-4 pb-2">
         <input
           autoFocus
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar producto por nombre…"
-          className="min-h-[56px] flex-1 rounded-2xl border-2 border-slate-300 bg-white px-4 text-xl"
+          placeholder="Buscar producto…"
+          className="min-h-[56px] min-w-0 flex-1 rounded-2xl border-2 border-slate-300 bg-white px-4 text-xl"
           aria-label="Buscar producto"
         />
-        <button type="button" onClick={onNewProduct} className="btn btn-warning px-5 text-lg">
+        <button
+          type="button"
+          onClick={onNewProduct}
+          className="btn btn-warning shrink-0 whitespace-nowrap px-4 py-3 text-lg"
+        >
           + Producto
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 px-3 pb-2">
+      <div className="flex flex-wrap gap-2 px-4 pb-2">
         <button
           type="button"
           onClick={() => setCategoryId(null)}
@@ -60,7 +64,7 @@ export function ProductGrid({ products, categories, onPick, onNewProduct }: Prod
         ))}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 pt-1">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-1">
         {filtered.length === 0 ? (
           <p className="p-6 text-center text-xl text-slate-500">
             No se encontraron productos.

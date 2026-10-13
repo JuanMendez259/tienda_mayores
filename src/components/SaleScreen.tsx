@@ -330,32 +330,36 @@ export function SaleScreen({
 
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2">
-        <div className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+        <div className="flex min-w-0 items-center gap-3">
           {store.logo_url && <img src={store.logo_url} alt="" className="h-12 w-12 rounded-xl" />}
-          <div>
-            <p className="text-xl font-extrabold leading-tight">{store.name}</p>
-            <p className="text-base text-slate-500">
+          <div className="min-w-0">
+            <p className="truncate text-xl font-extrabold leading-tight">{store.name}</p>
+            <p className="truncate text-base text-slate-500">
               {user.name} · Caja abierta {formatMXN(cashSession.opening_cents)}
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <button type="button" onClick={() => setHelpOpen(true)} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+          <button type="button" onClick={() => setHelpOpen(true)} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
             ❓ Ayuda
           </button>
           {canManage && (
-            <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
+            <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
               Menú
             </button>
           )}
-          <button type="button" onClick={openHeld} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
+          <button type="button" onClick={openHeld} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
             En espera
           </button>
-          <button type="button" onClick={onOpenCash} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
+          <button type="button" onClick={onOpenCash} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
             Caja
           </button>
-          <button type="button" onClick={onLogout} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
+          <button
+            type="button"
+            onClick={onLogout}
+            className={`btn btn-neutral px-3 py-3 text-lg sm:px-4 ${canManage ? 'col-span-2' : ''}`}
+          >
             Salir
           </button>
         </div>
