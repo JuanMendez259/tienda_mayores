@@ -22,7 +22,7 @@ export function Cart({ items, onInc, onDec, onRemove, onEditMeasure }: CartProps
   }
 
   return (
-    <ul className="flex flex-col gap-2 overflow-y-auto p-2">
+    <ul className="flex h-full flex-col gap-2 overflow-y-auto p-2">
       {items.map((item) => (
         <li key={item.key} className="card flex items-center gap-3 p-3">
           {item.image_url && (

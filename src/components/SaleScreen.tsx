@@ -77,6 +77,8 @@ export function SaleScreen({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
+  /** En móvil/tablet se alterna catálogo/carrito; en lg se ven ambos a la vez. */
+  const [view, setView] = useState<'catalog' | 'cart'>('catalog');
 
   // Los descuentos por promoción se calculan al vuelo (F-407).
   const pricedCart = useMemo(() => applyAutoPromotions(cart, promotions), [cart, promotions]);
@@ -327,8 +329,8 @@ export function SaleScreen({
   }
 
   return (
-    <div className="flex h-screen flex-col bg-slate-100">
-      <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-2">
+    <div className="flex h-dvh flex-col bg-slate-100">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-white px-4 py-2">
         <div className="flex items-center gap-3">
           {store.logo_url && <img src={store.logo_url} alt="" className="h-12 w-12 rounded-xl" />}
           <div>
@@ -338,22 +340,22 @@ export function SaleScreen({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setHelpOpen(true)} className="btn btn-neutral px-4 py-3 text-lg">
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          <button type="button" onClick={() => setHelpOpen(true)} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
             ❓ Ayuda
           </button>
           {canManage && (
-            <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-4 py-3 text-lg">
+            <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
               Menú
             </button>
           )}
-          <button type="button" onClick={openHeld} className="btn btn-neutral px-4 py-3 text-lg">
+          <button type="button" onClick={openHeld} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
             En espera
           </button>
-          <button type="button" onClick={onOpenCash} className="btn btn-neutral px-4 py-3 text-lg">
+          <button type="button" onClick={onOpenCash} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
             Caja
           </button>
-          <button type="button" onClick={onLogout} className="btn btn-neutral px-4 py-3 text-lg">
+          <button type="button" onClick={onLogout} className="btn btn-neutral px-3 py-3 text-base sm:px-4 sm:text-lg">
             Salir
           </button>
         </div>
@@ -366,8 +368,10 @@ export function SaleScreen({
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
-        <main className="min-h-0 flex-1">
+      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
+        <main
+          className={`min-h-0 lg:col-span-8 lg:block ${view === 'catalog' ? 'block' : 'hidden'}`}
+        >
           <ProductGrid
             products={products}
             categories={categories}
@@ -379,17 +383,23 @@ export function SaleScreen({
           />
         </main>
 
-        <aside className="flex w-full flex-col border-t border-slate-200 bg-white md:w-[440px] md:border-l md:border-t-0">
-          <Cart
-            items={pricedCart}
-            onInc={(key) => mutate(changeQty(cart, key, 1))}
-            onDec={(key) => mutate(changeQty(cart, key, -1))}
-            onRemove={(key) => mutate(removeItem(cart, key))}
-            onEditMeasure={(item) => {
-              const product = products.find((p) => p.id === item.productId);
-              if (product) setWeightFor({ product, key: item.key });
-            }}
-          />
+        <aside
+          className={`min-h-0 flex-col border-t border-slate-200 bg-white lg:col-span-4 lg:flex lg:border-l lg:border-t-0 ${
+            view === 'cart' ? 'flex' : 'hidden'
+          }`}
+        >
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <Cart
+              items={pricedCart}
+              onInc={(key) => mutate(changeQty(cart, key, 1))}
+              onDec={(key) => mutate(changeQty(cart, key, -1))}
+              onRemove={(key) => mutate(removeItem(cart, key))}
+              onEditMeasure={(item) => {
+                const product = products.find((p) => p.id === item.productId);
+                if (product) setWeightFor({ product, key: item.key });
+              }}
+            />
+          </div>
 
           <div className="border-t border-slate-200 p-4">
             <div className="mb-3 flex items-center justify-between">
@@ -464,8 +474,26 @@ export function SaleScreen({
         </aside>
       </div>
 
+      {/* Barra inferior para alternar vistas en móvil/tablet (en lg se ven ambas). */}
+      <nav className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white p-2 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setView('catalog')}
+          className={`btn py-4 text-xl ${view === 'catalog' ? 'btn-primary text-white' : 'btn-neutral'}`}
+        >
+          🍎 Ver Catálogo
+        </button>
+        <button
+          type="button"
+          onClick={() => setView('cart')}
+          className={`btn py-4 text-xl ${view === 'cart' ? 'btn-primary text-white' : 'btn-neutral'}`}
+        >
+          🛒 Ver Carrito{count > 0 ? ` (${count})` : ''}
+        </button>
+      </nav>
+
       {message && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 rounded-2xl bg-slate-900 px-6 py-3 text-xl font-bold text-white shadow-lg">
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 rounded-2xl bg-slate-900 px-6 py-3 text-xl font-bold text-white shadow-lg lg:bottom-6">
           {message}
         </div>
       )}
