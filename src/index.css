@@ -34,6 +34,10 @@ body {
   .btn-warning {
     @apply bg-amber-400 text-slate-900 hover:bg-amber-500;
   }
+  /* Acción de salir: discreta (contorno) para no competir con las operativas. */
+  .btn-exit {
+    @apply border-2 border-slate-300 bg-white text-red-700 hover:bg-red-50;
+  }
   .card {
     @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
   }
@@ -42,5 +46,13 @@ body {
   }
   .title {
     @apply text-2xl font-extrabold;
+  }
+  /* Carrusel horizontal sin barra de desplazamiento visible. */
+  .scrollbar-none {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
   }
 }

@@ -346,21 +346,21 @@ export function SaleScreen({
           </button>
           {canManage && (
             <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
-              Menú
+              📋 Menú
             </button>
           )}
           <button type="button" onClick={openHeld} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
-            En espera
+            ⏳ En espera
           </button>
           <button type="button" onClick={onOpenCash} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
-            Caja
+            💰 Caja
           </button>
           <button
             type="button"
             onClick={onLogout}
-            className={`btn btn-neutral px-3 py-3 text-lg sm:px-4 ${canManage ? 'col-span-2' : ''}`}
+            className={`btn btn-exit px-3 py-3 text-lg sm:px-4 ${canManage ? 'col-span-2' : ''}`}
           >
-            Salir
+            🚪 Salir
           </button>
         </div>
       </header>

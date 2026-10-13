@@ -44,11 +44,11 @@ export function ProductGrid({ products, categories, onPick, onNewProduct }: Prod
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 px-4 pb-2">
+      <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap px-4 pb-2 pt-1">
         <button
           type="button"
           onClick={() => setCategoryId(null)}
-          className={`btn px-5 py-3 text-lg ${categoryId === null ? 'btn-primary text-white' : 'btn-neutral'}`}
+          className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === null ? 'btn-primary text-white' : 'btn-neutral'}`}
         >
           Todo
         </button>
@@ -57,7 +57,7 @@ export function ProductGrid({ products, categories, onPick, onNewProduct }: Prod
             key={category.id}
             type="button"
             onClick={() => setCategoryId(category.id)}
-            className={`btn px-5 py-3 text-lg ${categoryId === category.id ? 'btn-primary text-white' : 'btn-neutral'}`}
+            className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === category.id ? 'btn-primary text-white' : 'btn-neutral'}`}
           >
             {category.name}
           </button>
