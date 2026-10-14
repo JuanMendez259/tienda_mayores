@@ -94,6 +94,7 @@ export function SaleScreen({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [schedules, setSchedules] = useState<SupplierSchedule[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [bestSellers, setBestSellers] = useState<string[]>([]);
   const [internalUseOpen, setInternalUseOpen] = useState(false);
 
   // Los descuentos por promoción se calculan al vuelo (F-407).
@@ -157,6 +158,23 @@ export function SaleScreen({
       active = false;
     };
   }, [store.id]);
+
+  // "Más vendidos" (F-A09): top de productos de los últimos 30 días.
+  useEffect(() => {
+    let active = true;
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - 29);
+    from.setHours(0, 0, 0, 0);
+    void repository
+      .getReport({ from: from.toISOString(), to: to.toISOString() })
+      .then((report) => {
+        if (active) setBestSellers(report.topProducts.map((item) => item.productId));
+      });
+    return () => {
+      active = false;
+    };
+  }, [store.id, products.length]);
 
   useEffect(() => {
     if (!message) return;
@@ -454,6 +472,7 @@ export function SaleScreen({
           <ProductGrid
             products={products}
             categories={categories}
+            bestSellers={bestSellers}
             onPick={pick}
             onNewProduct={() => {
               setNewBarcode('');

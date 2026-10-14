@@ -219,17 +219,54 @@ Deno.serve(async (request) => {
       case 'createProduct': {
         const { data, error } = await db.from('product').insert(body.input).select('*').single();
         if (error) throw error;
+        const input = body.input as {
+          stock_qty?: number;
+          track_stock?: boolean;
+          created_by?: string | null;
+        };
+        // C-05: el inventario inicial queda como movimiento de ajuste.
+        if (data && input.track_stock !== false && (input.stock_qty ?? 0) !== 0) {
+          await db.from('stock_movement').insert({
+            store_id: data.store_id,
+            product_id: data.id,
+            type: 'adjustment',
+            qty: input.stock_qty ?? 0,
+            reason: 'Inventario inicial',
+            user_id: input.created_by ?? null,
+          });
+        }
         return json(data);
       }
 
       case 'updateProduct': {
+        const patch = body.patch as Record<string, unknown> & { stock_qty?: number };
+        const previous =
+          patch.stock_qty !== undefined
+            ? (await db.from('product').select('stock_qty').eq('id', body.id).single()).data
+            : null;
         const { data, error } = await db
           .from('product')
-          .update(body.patch)
+          .update(patch)
           .eq('id', body.id)
           .select('*')
           .single();
         if (error) throw error;
+        // C-05: un cambio manual de existencias queda como movimiento de ajuste.
+        if (
+          data &&
+          previous &&
+          patch.stock_qty !== undefined &&
+          patch.stock_qty !== previous.stock_qty
+        ) {
+          await db.from('stock_movement').insert({
+            store_id: data.store_id,
+            product_id: data.id,
+            type: 'adjustment',
+            qty: patch.stock_qty - previous.stock_qty,
+            reason: 'Ajuste manual de inventario',
+            user_id: (body.userId as string | undefined) ?? null,
+          });
+        }
         return json(data);
       }
 
@@ -1047,6 +1084,17 @@ Deno.serve(async (request) => {
           .eq('customer_id', customerId)
           .eq('status', 'paid')
           .order('created_at', { ascending: true });
+        // Renglones de cada fiado, para el estado de cuenta legible (F-B04).
+        const saleIds = (sales ?? []).map((sale: { id: string }) => sale.id);
+        const { data: saleItems } = saleIds.length
+          ? await db.from('sale_item').select('*').in('sale_id', saleIds)
+          : { data: [] as Array<{ sale_id: string }> };
+        const itemsBySale = new Map<string, Array<(typeof saleItems)[number]>>();
+        for (const item of saleItems ?? []) {
+          const list = itemsBySale.get(item.sale_id) ?? [];
+          list.push(item);
+          itemsBySale.set(item.sale_id, list);
+        }
         const { data: payments } = await db
           .from('customer_payment')
           .select('*')
@@ -1060,14 +1108,20 @@ Deno.serve(async (request) => {
         let balance = 0;
         let overdue = 0;
         const salesWithBalance = (sales ?? []).map(
-          (sale: { total_cents: number; created_at: string }) => {
+          (sale: { id: string; total_cents: number; created_at: string }) => {
             const applied = Math.min(remainingPaid, sale.total_cents);
             remainingPaid -= applied;
             const saleBalance = sale.total_cents - applied;
             balance += saleBalance;
             const ageDays = (now - new Date(sale.created_at).getTime()) / 86400000;
             if (ageDays > 30 && saleBalance > 0) overdue += saleBalance;
-            return { sale, paid_cents: applied, balance_cents: saleBalance };
+            return {
+              sale,
+              paid_cents: applied,
+              balance_cents: saleBalance,
+              age_days: Math.floor(ageDays),
+              items: itemsBySale.get(sale.id) ?? [],
+            };
           },
         );
         return json({

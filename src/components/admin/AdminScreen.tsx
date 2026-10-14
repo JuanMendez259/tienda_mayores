@@ -117,7 +117,7 @@ export function AdminScreen({
         )}
         {tab === 'suppliers' && <SuppliersAdmin store={store} user={user} />}
         {tab === 'credit' && (
-          <CustomersAdmin store={store} user={user} cashSessionId={cashSessionId} />
+          <CustomersAdmin store={store} user={user} products={products} cashSessionId={cashSessionId} />
         )}
         {tab === 'movements' && <MovementsAdmin products={products} users={users} />}
         {tab === 'reports' && <ReportsAdmin store={store} />}

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import type { AppUser, Customer, Store } from '../../types/database';
+import type { AppUser, Customer, Product, Store } from '../../types/database';
 import { repository } from '../../data';
 import type { CustomerStatement } from '../../data';
 import { formatMXN } from '../../lib/money';
@@ -8,6 +8,7 @@ import { PAYMENT_METHOD_LABELS } from '../../devices/payments';
 interface CustomersAdminProps {
   store: Store;
   user: AppUser;
+  products: Product[];
   /** Sesión de caja abierta, para que los abonos en efectivo entren al corte. */
   cashSessionId: string | null;
 }
@@ -21,9 +22,10 @@ type View = { kind: 'list' } | { kind: 'statement'; customerId: string };
  * Fiado completo (F-B01 a F-B06): deudores, abonos, estados de cuenta legibles
  * y lista de morosos (saldo con más de 30 días).
  */
-export function CustomersAdmin({ store, user, cashSessionId }: CustomersAdminProps) {
+export function CustomersAdmin({ store, user, products, cashSessionId }: CustomersAdminProps) {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [statements, setStatements] = useState<Record<string, CustomerStatement>>({});
+  const productById = new Map(products.map((product) => [product.id, product.name]));
   const [tab, setTab] = useState<'deudores' | 'morosos'>('deudores');
   const [view, setView] = useState<View>({ kind: 'list' });
   const [loading, setLoading] = useState(true);
@@ -217,6 +219,12 @@ export function CustomersAdmin({ store, user, cashSessionId }: CustomersAdminPro
             const statement = statements[customer.id];
             const balance = statement?.balance_cents ?? 0;
             const overdueCents = statement?.overdue_cents ?? 0;
+            const oldestDays = statement
+              ? statement.sales.reduce(
+                  (max, entry) => (entry.balance_cents > 0 ? Math.max(max, entry.age_days) : max),
+                  0,
+                )
+              : 0;
             const overLimit =
               customer.credit_limit_cents !== null && balance > customer.credit_limit_cents;
             return (
@@ -226,6 +234,9 @@ export function CustomersAdmin({ store, user, cashSessionId }: CustomersAdminPro
                     <p className="truncate text-xl font-bold">{customer.name}</p>
                     {customer.phone && (
                       <p className="text-base text-slate-500">📞 {customer.phone}</p>
+                    )}
+                    {oldestDays > 0 && (
+                      <p className="text-base text-slate-500">Deuda más antigua: {oldestDays} día(s)</p>
                     )}
                   </div>
                   <div className="text-right">
@@ -272,7 +283,14 @@ export function CustomersAdmin({ store, user, cashSessionId }: CustomersAdminPro
         </ul>
       )}
 
-      {view.kind === 'statement' && <StatementView statements={statements} customerId={view.customerId} onBack={() => setView({ kind: 'list' })} />}
+      {view.kind === 'statement' && (
+        <StatementView
+          statements={statements}
+          customerId={view.customerId}
+          productById={productById}
+          onBack={() => setView({ kind: 'list' })}
+        />
+      )}
 
       {payFor && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
@@ -340,13 +358,48 @@ export function CustomersAdmin({ store, user, cashSessionId }: CustomersAdminPro
   );
 }
 
+function formatDateTime(iso: string): string {
+  return iso.slice(0, 16).replace('T', ' ');
+}
+
+/** Texto listo para copiar o enviar por WhatsApp (F-B04). */
+function statementText(statement: CustomerStatement, productById: Map<string, string>): string {
+  const lines: string[] = [
+    `Estado de cuenta · ${statement.customer.name}`,
+    `Debe: ${formatMXN(statement.balance_cents)}`,
+  ];
+  if (statement.overdue_cents > 0) {
+    lines.push(`Más de 30 días: ${formatMXN(statement.overdue_cents)}`);
+  }
+  lines.push('', 'Fiados:');
+  for (const entry of statement.sales) {
+    lines.push(
+      `#${entry.sale.number} · ${formatDateTime(entry.sale.created_at)} · ${formatMXN(
+        entry.sale.total_cents,
+      )} (resta ${formatMXN(entry.balance_cents)})`,
+    );
+    for (const item of entry.items) {
+      lines.push(`   • ${productById.get(item.product_id) ?? 'Producto'} × ${item.qty}`);
+    }
+  }
+  if (statement.payments.length > 0) {
+    lines.push('', 'Abonos:');
+    for (const payment of statement.payments) {
+      lines.push(`   ${formatDateTime(payment.created_at)} · ${formatMXN(payment.amount_cents)}`);
+    }
+  }
+  return lines.join('\n');
+}
+
 function StatementView({
   statements,
   customerId,
+  productById,
   onBack,
 }: {
   statements: Record<string, CustomerStatement>;
   customerId: string;
+  productById: Map<string, string>;
   onBack: () => void;
 }) {
   const statement = statements[customerId];
@@ -360,13 +413,27 @@ function StatementView({
       </div>
     );
   }
+
+  const text = statementText(statement, productById);
+
   return (
     <div className="card space-y-4 p-4">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="title text-2xl">{statement.customer.name}</h3>
-        <button type="button" onClick={onBack} className="btn btn-neutral px-4 py-3 text-lg">
-          ← Regresar
-        </button>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              void navigator.clipboard?.writeText(text);
+            }}
+            className="btn btn-neutral px-4 py-3 text-lg"
+          >
+            📋 Copiar
+          </button>
+          <button type="button" onClick={onBack} className="btn btn-neutral px-4 py-3 text-lg">
+            ← Regresar
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
@@ -393,9 +460,19 @@ function StatementView({
                   <span className="text-lg">{formatMXN(entry.sale.total_cents)}</span>
                 </div>
                 <p className="text-base text-slate-600">
-                  {entry.sale.created_at.slice(0, 10)} · abonado {formatMXN(entry.paid_cents)} ·
-                  resta <span className="font-semibold">{formatMXN(entry.balance_cents)}</span>
+                  {formatDateTime(entry.sale.created_at)} · {entry.age_days} día(s) · abonado{' '}
+                  {formatMXN(entry.paid_cents)} · resta{' '}
+                  <span className="font-semibold">{formatMXN(entry.balance_cents)}</span>
                 </p>
+                {entry.items.length > 0 && (
+                  <ul className="mt-1 space-y-0.5">
+                    {entry.items.map((item) => (
+                      <li key={item.id} className="text-base text-slate-700">
+                        • {productById.get(item.product_id) ?? 'Producto'} × {item.qty}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </li>
             ))}
           </ul>

@@ -6,23 +6,53 @@ import { formatMeasure } from '../lib/weight';
 interface ProductGridProps {
   products: Product[];
   categories: Category[];
+  /** Ids de los productos más vendidos, en orden (F-A09). */
+  bestSellers?: string[];
   onPick: (product: Product) => void;
   onNewProduct: () => void;
 }
 
-/** Cuadrícula táctil de productos con búsqueda y categorías (F-101, F-103). */
-export function ProductGrid({ products, categories, onPick, onNewProduct }: ProductGridProps) {
+/** Cuadrícula táctil de productos con búsqueda, categorías, marcas y más vendidos (F-101, F-103, F-A09). */
+export function ProductGrid({
+  products,
+  categories,
+  bestSellers = [],
+  onPick,
+  onNewProduct,
+}: ProductGridProps) {
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
+  const [brand, setBrand] = useState<string | null>(null);
+  const [bestOnly, setBestOnly] = useState(false);
+
+  const brands = useMemo(() => {
+    const set = new Set<string>();
+    for (const product of products) {
+      if (product.brand) set.add(product.brand);
+    }
+    return [...set].sort((a, b) => a.localeCompare(b));
+  }, [products]);
+
+  const bestRank = useMemo(() => {
+    const map = new Map<string, number>();
+    bestSellers.forEach((id, index) => map.set(id, index));
+    return map;
+  }, [bestSellers]);
 
   const filtered = useMemo(() => {
     const text = query.trim().toLowerCase();
-    return products.filter((product) => {
+    const list = products.filter((product) => {
       const matchesCategory = categoryId ? product.category_id === categoryId : true;
       const matchesText = text ? product.name.toLowerCase().includes(text) : true;
-      return matchesCategory && matchesText;
+      const matchesBrand = brand ? product.brand === brand : true;
+      const matchesBest = bestOnly ? bestRank.has(product.id) : true;
+      return matchesCategory && matchesText && matchesBrand && matchesBest;
     });
-  }, [products, query, categoryId]);
+    if (bestOnly) {
+      list.sort((a, b) => (bestRank.get(a.id) ?? 0) - (bestRank.get(b.id) ?? 0));
+    }
+    return list;
+  }, [products, query, categoryId, brand, bestOnly, bestRank]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -47,22 +77,60 @@ export function ProductGrid({ products, categories, onPick, onNewProduct }: Prod
       <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap px-4 pb-2 pt-1">
         <button
           type="button"
-          onClick={() => setCategoryId(null)}
-          className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === null ? 'btn-primary text-white' : 'btn-neutral'}`}
+          onClick={() => {
+            setCategoryId(null);
+            setBestOnly(false);
+          }}
+          className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === null && !bestOnly ? 'btn-primary text-white' : 'btn-neutral'}`}
         >
           Todo
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setBestOnly(true);
+            setCategoryId(null);
+          }}
+          className={`btn shrink-0 px-5 py-3 text-lg ${bestOnly ? 'btn-warning' : 'btn-neutral'}`}
+        >
+          🔥 Más vendidos
         </button>
         {categories.map((category) => (
           <button
             key={category.id}
             type="button"
-            onClick={() => setCategoryId(category.id)}
+            onClick={() => {
+              setCategoryId(category.id);
+              setBestOnly(false);
+            }}
             className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === category.id ? 'btn-primary text-white' : 'btn-neutral'}`}
           >
             {category.name}
           </button>
         ))}
       </div>
+
+      {brands.length > 0 && (
+        <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap px-4 pb-2">
+          <button
+            type="button"
+            onClick={() => setBrand(null)}
+            className={`btn shrink-0 px-4 py-2 text-base ${brand === null ? 'btn-primary text-white' : 'btn-neutral'}`}
+          >
+            Todas las marcas
+          </button>
+          {brands.map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setBrand(item)}
+              className={`btn shrink-0 px-4 py-2 text-base ${brand === item ? 'btn-primary text-white' : 'btn-neutral'}`}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-1">
         {filtered.length === 0 ? (

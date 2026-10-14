@@ -278,6 +278,10 @@ export interface CreditSale {
   sale: Sale;
   paid_cents: number;
   balance_cents: number;
+  /** Días transcurridos desde la venta (F-B05). */
+  age_days: number;
+  /** Renglones vendidos, para mostrar qué se llevó (F-B04). */
+  items: SaleItem[];
 }
 
 /** Estado de cuenta legible de un cliente (F-B05). */

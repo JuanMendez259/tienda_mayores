@@ -98,6 +98,24 @@ function createLocalRepository(): Repository {
   const customerPayments = new Map<string, CustomerPayment[]>();
   const auditLogs: AuditLog[] = [];
   const stockMovements: StockMovement[] = [];
+  // C-05: el inventario inicial cuenta como movimiento para que
+  // stock = suma de movimientos cuadre desde el arranque (demo).
+  for (const product of products.values()) {
+    if (product.track_stock && product.stock_qty !== 0) {
+      stockMovements.push({
+        id: `seed-baseline-${product.id}`,
+        store_id: product.store_id,
+        product_id: product.id,
+        type: 'adjustment',
+        qty: product.stock_qty,
+        reason: 'Inventario inicial',
+        user_id: null,
+        sale_id: null,
+        lot_id: null,
+        created_at: '2026-01-01T00:00:00Z',
+      });
+    }
+  }
   let saleCounter = 0;
 
   function stockDelta(item: SaleItem): number {
@@ -272,6 +290,21 @@ function createLocalRepository(): Repository {
         updated_at: nowIso(),
       };
       products.set(product.id, product);
+      // C-05: el inventario inicial queda como movimiento de ajuste.
+      if (product.track_stock && product.stock_qty !== 0) {
+        stockMovements.push({
+          id: uid(),
+          store_id: product.store_id,
+          product_id: product.id,
+          type: 'adjustment',
+          qty: product.stock_qty,
+          reason: 'Inventario inicial',
+          user_id: input.created_by,
+          sale_id: null,
+          lot_id: null,
+          created_at: nowIso(),
+        });
+      }
       return clone(product);
     },
     async updateProduct(id: string, patch: ProductUpdate) {
@@ -279,6 +312,21 @@ function createLocalRepository(): Repository {
       if (!current) throw new Error('Producto no encontrado');
       const updated: Product = { ...current, ...patch, updated_at: nowIso() };
       products.set(id, updated);
+      // C-05: un cambio manual de existencias queda como movimiento de ajuste.
+      if (patch.stock_qty !== undefined && patch.stock_qty !== current.stock_qty) {
+        stockMovements.push({
+          id: uid(),
+          store_id: updated.store_id,
+          product_id: id,
+          type: 'adjustment',
+          qty: patch.stock_qty - current.stock_qty,
+          reason: 'Ajuste manual de inventario',
+          user_id: null,
+          sale_id: null,
+          lot_id: null,
+          created_at: nowIso(),
+        });
+      }
       return clone(updated);
     },
     async deactivateProduct(id: string) {
@@ -950,7 +998,13 @@ function createLocalRepository(): Repository {
         balance += saleBalance;
         const ageDays = (now - new Date(sale.created_at).getTime()) / 86400000;
         if (ageDays > 30 && saleBalance > 0) overdue += saleBalance;
-        return { sale: clone(sale), paid_cents: applied, balance_cents: saleBalance };
+        return {
+          sale: clone(sale),
+          paid_cents: applied,
+          balance_cents: saleBalance,
+          age_days: Math.floor(ageDays),
+          items: clone(itemsBySale.get(sale.id) ?? []),
+        };
       });
       return {
         customer: clone(customer),

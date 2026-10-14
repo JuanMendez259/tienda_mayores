@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { AppUser, Product, StockMovement, StockMovementType } from '../../types/database';
 import { repository } from '../../data';
 import { formatStock } from '../../lib/weight';
+import { formatMXN } from '../../lib/money';
 
 interface MovementsAdminProps {
   products: Product[];
@@ -28,9 +29,20 @@ export function MovementsAdmin({ products, users }: MovementsAdminProps) {
   const [productId, setProductId] = useState('');
   const [type, setType] = useState('');
   const [userId, setUserId] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   const productById = useMemo(() => new Map(products.map((p) => [p.id, p])), [products]);
   const userById = useMemo(() => new Map(users.map((u) => [u.id, u.name])), [users]);
+  const internalTotalCents = useMemo(() => {
+    if (type !== 'internal_use') return null;
+    let total = 0;
+    for (const m of movements) {
+      const p = productById.get(m.product_id);
+      if (m.qty < 0 && p) total += Math.abs(m.qty) * p.cost_cents;
+    }
+    return total;
+  }, [type, movements, productById]);
 
   useEffect(() => {
     void (async () => {
@@ -38,10 +50,12 @@ export function MovementsAdmin({ products, users }: MovementsAdminProps) {
         productId: productId || undefined,
         type: (type || undefined) as StockMovementType | undefined,
         userId: userId || undefined,
+        from: from || undefined,
+        to: to || undefined,
       });
       setMovements(data);
     })();
-  }, [productId, type, userId]);
+  }, [productId, type, userId, from, to]);
 
   return (
     <div>
@@ -73,12 +87,25 @@ export function MovementsAdmin({ products, users }: MovementsAdminProps) {
             ))}
           </select>
         </div>
+        <div>
+          <label className={label} htmlFor="m-from">Desde</label>
+          <input id="m-from" type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={field} />
+        </div>
+        <div>
+          <label className={label} htmlFor="m-to">Hasta</label>
+          <input id="m-to" type="date" value={to} onChange={(e) => setTo(e.target.value)} className={field} />
+        </div>
       </div>
 
       {movements.length === 0 ? (
         <p className="text-lg text-slate-500">No hay movimientos con esos filtros.</p>
       ) : (
         <ul className="space-y-2">
+          {internalTotalCents !== null && (
+            <li className="mb-2 rounded-2xl bg-slate-100 p-3 text-lg">
+              Total costo consumo interno: {formatMXN(internalTotalCents)}
+            </li>
+          )}
           {movements.map((movement) => {
             const product = productById.get(movement.product_id);
             const sign = movement.qty >= 0 ? '+' : '−';
