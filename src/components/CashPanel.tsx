@@ -10,10 +10,12 @@ interface CashPanelProps {
   session: CashSession;
   onClose: () => void;
   onClosed: () => void;
+  /** Tras el corte, lleva a la pantalla de selección de usuario (C-02). */
+  onProfiles?: () => void;
 }
 
 /** Corte de caja (F-603) y retiros/depósitos de efectivo (F-602). */
-export function CashPanel({ session, onClose, onClosed }: CashPanelProps) {
+export function CashPanel({ session, onClose, onClosed, onProfiles }: CashPanelProps) {
   const [view, setView] = useState<'summary' | 'move' | 'result'>('summary');
   const [summary, setSummary] = useState<CashSummary | null>(null);
   const [counted, setCounted] = useState('');
@@ -176,6 +178,15 @@ export function CashPanel({ session, onClose, onClosed }: CashPanelProps) {
             >
               Terminar
             </button>
+            {onProfiles && (
+              <button
+                type="button"
+                onClick={onProfiles}
+                className="btn btn-neutral mt-3 w-full py-4 text-xl"
+              >
+                👤 Ver perfiles
+              </button>
+            )}
           </>
         )}
 

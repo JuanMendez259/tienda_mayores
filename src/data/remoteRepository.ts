@@ -51,6 +51,7 @@ export const remoteRepository: Repository = {
   getStore: () => call<Store>('getStore'),
   listUsers: () => call<AppUser[]>('listUsers'),
   verifyPin: (userId, pin) => call<boolean>('verifyPin', { userId, pin }),
+  setPin: (userId, oldPin, newPin) => call<boolean>('setPin', { userId, oldPin, newPin }),
 
   listCategories: () => call<Category[]>('listCategories'),
   listProducts: () => call<Product[]>('listProducts'),

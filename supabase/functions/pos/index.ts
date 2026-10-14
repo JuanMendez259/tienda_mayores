@@ -136,7 +136,7 @@ Deno.serve(async (request) => {
       case 'listUsers': {
         const { data, error } = await db
           .from('app_user')
-          .select('id, store_id, name, photo_url, role, active, failed_attempts, locked_until, created_at, updated_at')
+          .select('id, store_id, name, photo_url, role, active, failed_attempts, locked_until, pin_reset_required, created_at, updated_at')
           .eq('active', true)
           .order('name');
         if (error) throw error;
@@ -147,6 +147,26 @@ Deno.serve(async (request) => {
         const { data, error } = await db.rpc('verify_pin', {
           p_user_id: body.userId as string,
           p_pin: body.pin as string,
+        });
+        if (error) throw error;
+        return json(Boolean(data));
+      }
+
+      case 'setPin': {
+        const userId = body.userId as string;
+        const newPin = String(body.newPin ?? '');
+        if (!/^[0-9]{4}$/.test(newPin)) {
+          return fail('El PIN debe tener exactamente 4 dígitos.');
+        }
+        const { data: ok, error: verifyError } = await db.rpc('verify_pin', {
+          p_user_id: userId,
+          p_pin: String(body.oldPin ?? ''),
+        });
+        if (verifyError) throw verifyError;
+        if (!ok) return fail('El PIN actual no es correcto.');
+        const { data, error } = await db.rpc('set_pin', {
+          p_user_id: userId,
+          p_new_pin: newPin,
         });
         if (error) throw error;
         return json(Boolean(data));

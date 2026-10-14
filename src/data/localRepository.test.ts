@@ -255,3 +255,20 @@ describe('control de la Fase 3 (lotes, promociones, reportes)', () => {
     expect(await repo.listPromotions()).toHaveLength(0);
   });
 });
+
+describe('C-03 · PIN de 4 dígitos con cambio obligatorio', () => {
+  it('cambia el PIN validando el actual y exige exactamente 4 dígitos', async () => {
+    const users = await repo.listUsers();
+    const maria = users.find((u) => u.role === 'owner')!;
+
+    // PIN actual incorrecto -> no cambia.
+    expect(await repo.setPin(maria.id, '0000', '5678')).toBe(false);
+    // El nuevo PIN debe tener exactamente 4 dígitos.
+    expect(await repo.setPin(maria.id, '1234', '123')).toBe(false);
+    expect(await repo.setPin(maria.id, '1234', '12345')).toBe(false);
+    // Cambio correcto.
+    expect(await repo.setPin(maria.id, '1234', '5678')).toBe(true);
+    expect(await repo.verifyPin(maria.id, '1234')).toBe(false);
+    expect(await repo.verifyPin(maria.id, '5678')).toBe(true);
+  });
+});

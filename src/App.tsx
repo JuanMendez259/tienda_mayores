@@ -199,6 +199,10 @@ function App() {
               session={cashSession}
               onClose={() => setCashPanelOpen(false)}
               onClosed={handleCashClosed}
+              onProfiles={() => {
+                setCashPanelOpen(false);
+                handleLogout();
+              }}
             />
           )}
           {adminOpen && (

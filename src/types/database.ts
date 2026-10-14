@@ -73,6 +73,8 @@ export interface AppUser {
   failed_attempts: number;
   /** Bloqueo temporal hasta esta fecha UTC, o null si no está bloqueado. */
   locked_until: string | null;
+  /** true = el usuario debe establecer un PIN nuevo de 4 dígitos (C-03). */
+  pin_reset_required: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -268,7 +270,8 @@ export type StoreUpdate = Update<Store>;
 
 export type AppUserInsert = Insert<
   AppUser,
-  'id' | 'role' | 'active' | 'created_at' | 'updated_at' | 'photo_url' | 'failed_attempts' | 'locked_until'
+  | 'id' | 'role' | 'active' | 'created_at' | 'updated_at' | 'photo_url' | 'failed_attempts'
+  | 'locked_until' | 'pin_reset_required'
 >;
 export type AppUserUpdate = Update<AppUser>;
 
@@ -350,6 +353,8 @@ export interface Database {
     Functions: {
       /** Valida el PIN y aplica el límite de intentos. Solo backend. */
       verify_pin: { Args: { p_user_id: string; p_pin: string }; Returns: boolean };
+      /** Establece un PIN nuevo de 4 dígitos. Solo backend. */
+      set_pin: { Args: { p_user_id: string; p_new_pin: string }; Returns: boolean };
     };
   };
 }

@@ -11,7 +11,8 @@ interface PaymentModalProps {
   onConfirm: (payments: PaymentInput[], receivedCents: number) => void;
 }
 
-const QUICK_BILLS = [50, 100, 200, 500, 1000];
+/** Billetes y monedas frecuentes en México. Cada toque SUMA al recibido (C-01). */
+const QUICK_DENOMS = [5, 10, 20, 50, 100, 200, 500, 1000];
 
 type Mode = 'cash' | 'card_clip' | 'mercadopago_qr';
 
@@ -151,25 +152,38 @@ export function PaymentModal({ totalCents, onCancel, onConfirm }: PaymentModalPr
               <span className="text-3xl font-extrabold text-amber-900">{formatMXN(cashChange)}</span>
             </div>
 
-            <div className="mb-3 grid grid-cols-3 gap-3">
-              {QUICK_BILLS.map((bill) => (
+            <p className="mb-2 text-base text-slate-500">
+              Toca los billetes y monedas que te dieron; se van sumando.
+            </p>
+            <div className="mb-2 grid grid-cols-4 gap-2">
+              {QUICK_DENOMS.map((denom) => (
                 <button
-                  key={bill}
+                  key={denom}
                   type="button"
                   onClick={() =>
-                    setAmount((prev) => String((parseAmountToCents(prev) + bill * 100) / 100))
+                    setAmount((prev) => String((parseAmountToCents(prev) + denom * 100) / 100))
                   }
-                  className="btn btn-neutral py-4 text-xl"
+                  aria-label={`Sumar ${denom} pesos`}
+                  className="btn btn-neutral px-1 py-3 text-lg"
                 >
-                  +${bill}
+                  +${denom}
                 </button>
               ))}
+            </div>
+            <div className="mb-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setAmount((remaining / 100).toFixed(2))}
-                className="btn btn-warning py-4 text-xl"
+                className="btn btn-warning px-2 py-3 text-lg"
               >
-                Exacto
+                🎯 Exacto
+              </button>
+              <button
+                type="button"
+                onClick={() => setAmount('')}
+                className="btn btn-danger px-2 py-3 text-lg"
+              >
+                🧹 Borrar
               </button>
             </div>
 

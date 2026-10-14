@@ -176,6 +176,8 @@ export interface Repository {
   getStore(): Promise<Store>;
   listUsers(): Promise<AppUser[]>;
   verifyPin(userId: string, pin: string): Promise<boolean>;
+  /** Establece un PIN nuevo de 4 dígitos validando el PIN actual (C-03). */
+  setPin(userId: string, oldPin: string, newPin: string): Promise<boolean>;
 
   listCategories(): Promise<Category[]>;
   listProducts(): Promise<Product[]>;

@@ -184,6 +184,24 @@ function createLocalRepository(): Repository {
     };
   }
 
+  /** Verifica el PIN y aplica el límite de intentos (5 fallos -> 5 min). */
+  function checkPin(userId: string, pin: string): boolean {
+    const user = users.find((u) => u.id === userId && u.active);
+    if (!user) return false;
+    if (user.locked_until && new Date(user.locked_until) > new Date()) return false;
+    if (seedPins[userId] === pin) {
+      user.failed_attempts = 0;
+      user.locked_until = null;
+      return true;
+    }
+    user.failed_attempts += 1;
+    if (user.failed_attempts >= 5) {
+      user.locked_until = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+      user.failed_attempts = 0;
+    }
+    return false;
+  }
+
   return {
     async getStore() {
       return clone(store);
@@ -192,20 +210,17 @@ function createLocalRepository(): Repository {
       return clone(users.filter((u) => u.active));
     },
     async verifyPin(userId, pin) {
-      const user = users.find((u) => u.id === userId && u.active);
+      return checkPin(userId, pin);
+    },
+    async setPin(userId, oldPin, newPin) {
+      if (!/^\d{4}$/.test(newPin)) return false;
+      if (!checkPin(userId, oldPin)) return false;
+      const user = users.find((u) => u.id === userId);
       if (!user) return false;
-      if (user.locked_until && new Date(user.locked_until) > new Date()) return false;
-      if (seedPins[userId] === pin) {
-        user.failed_attempts = 0;
-        user.locked_until = null;
-        return true;
-      }
-      user.failed_attempts += 1;
-      if (user.failed_attempts >= 5) {
-        user.locked_until = new Date(Date.now() + 5 * 60 * 1000).toISOString();
-        user.failed_attempts = 0;
-      }
-      return false;
+      seedPins[userId] = newPin;
+      user.pin_reset_required = false;
+      user.updated_at = nowIso();
+      return true;
     },
 
     async listCategories() {
