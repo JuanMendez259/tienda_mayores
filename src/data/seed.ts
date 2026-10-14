@@ -32,6 +32,8 @@ export const seedStore: Store = {
   expiry_alert_days: 15,
   ticket_width_mm: 80,
   whatsapp_country_code: '+52',
+  credit_cashier_allowed: false,
+  internal_use_cashier_allowed: false,
   created_at: '2026-01-01T00:00:00Z',
   updated_at: '2026-01-01T00:00:00Z',
 };
@@ -168,6 +170,8 @@ export const seedProducts: Product[] = productSeeds.map((p) => ({
   track_stock: true,
   stock_qty: p.stock_qty,
   low_stock_threshold: p.low_stock_threshold,
+  supplier_id: null,
+  brand: null,
   active: true,
   created_by: null,
   created_at: '2026-01-01T00:00:00Z',

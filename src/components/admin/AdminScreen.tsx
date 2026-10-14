@@ -3,7 +3,9 @@ import type { AppUser, Category, Product, Store } from '../../types/database';
 import { ProductsAdmin } from './ProductsAdmin';
 import { InventoryAdmin } from './InventoryAdmin';
 import { PurchasesAdmin } from './PurchasesAdmin';
+import { PurchaseOrdersAdmin } from './PurchaseOrdersAdmin';
 import { SuppliersAdmin } from './SuppliersAdmin';
+import { CustomersAdmin } from './CustomersAdmin';
 import { MovementsAdmin } from './MovementsAdmin';
 import { SettingsAdmin } from './SettingsAdmin';
 import { PromotionsAdmin } from './PromotionsAdmin';
@@ -17,6 +19,8 @@ interface AdminScreenProps {
   users: AppUser[];
   products: Product[];
   categories: Category[];
+  /** Sesión de caja abierta (para que los abonos en efectivo entren al corte). */
+  cashSessionId: string | null;
   onClose: () => void;
   onRefreshProducts: () => void;
   onStoreSaved: (store: Store) => void;
@@ -27,8 +31,10 @@ type Tab =
   | 'inventory'
   | 'promotions'
   | 'expirations'
+  | 'orders'
   | 'purchases'
   | 'suppliers'
+  | 'credit'
   | 'movements'
   | 'reports'
   | 'settings'
@@ -41,11 +47,13 @@ export function AdminScreen({
   users,
   products,
   categories,
+  cashSessionId,
   onClose,
   onRefreshProducts,
   onStoreSaved,
 }: AdminScreenProps) {
   const isOwner = user.role === 'owner';
+  const isManager = user.role === 'manager';
   const modules = store.modules;
 
   const tabs: { id: Tab; label: string }[] = [];
@@ -53,8 +61,10 @@ export function AdminScreen({
   if (modules.inventory) tabs.push({ id: 'inventory', label: 'Inventario' });
   if (modules.discounts) tabs.push({ id: 'promotions', label: 'Promociones' });
   if (modules.inventory) tabs.push({ id: 'expirations', label: 'Caducidades' });
+  if (modules.purchases) tabs.push({ id: 'orders', label: 'Órdenes' });
   if (modules.purchases) tabs.push({ id: 'purchases', label: 'Compras' });
   if (modules.suppliers) tabs.push({ id: 'suppliers', label: 'Proveedores' });
+  if (isOwner || isManager) tabs.push({ id: 'credit', label: 'Fiado' });
   if (modules.movements) tabs.push({ id: 'movements', label: 'Movimientos' });
   tabs.push({ id: 'reports', label: 'Reportes' });
   if (isOwner) tabs.push({ id: 'settings', label: 'Configuración' });
@@ -100,11 +110,15 @@ export function AdminScreen({
           <InventoryAdmin store={store} user={user} products={products} onRefresh={onRefreshProducts} />
         )}
         {tab === 'promotions' && <PromotionsAdmin store={store} products={products} />}
-        {tab === 'expirations' && <ExpirationsAdmin store={store} products={products} />}
+        {tab === 'expirations' && <ExpirationsAdmin store={store} user={user} products={products} />}
+        {tab === 'orders' && <PurchaseOrdersAdmin store={store} user={user} products={products} />}
         {tab === 'purchases' && (
           <PurchasesAdmin store={store} user={user} products={products} onRefresh={onRefreshProducts} />
         )}
-        {tab === 'suppliers' && <SuppliersAdmin store={store} />}
+        {tab === 'suppliers' && <SuppliersAdmin store={store} user={user} />}
+        {tab === 'credit' && (
+          <CustomersAdmin store={store} user={user} cashSessionId={cashSessionId} />
+        )}
         {tab === 'movements' && <MovementsAdmin products={products} users={users} />}
         {tab === 'reports' && <ReportsAdmin store={store} />}
         {tab === 'settings' && isOwner && <SettingsAdmin store={store} onSaved={onStoreSaved} />}

@@ -17,6 +17,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   card_clip: 'Terminal Clip',
   mercadopago_qr: 'Mercado Pago (QR)',
   mercadopago_terminal: 'Mercado Pago (terminal)',
+  credit: 'Fiado',
 };
 
 export interface PaymentRequest {

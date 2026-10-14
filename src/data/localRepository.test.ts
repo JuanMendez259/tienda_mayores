@@ -272,3 +272,204 @@ describe('C-03 · PIN de 4 dígitos con cambio obligatorio', () => {
     expect(await repo.verifyPin(maria.id, '5678')).toBe(true);
   });
 });
+
+describe('v2 · fiado, consumo interno, cambios y órdenes', () => {
+  async function base() {
+    const store = await repo.getStore();
+    const users = await repo.listUsers();
+    const maria = users.find((u) => u.role === 'owner')!;
+    return { store, maria };
+  }
+
+  it('registra fiado, abonos y el estado de cuenta (F-B03, F-B04, F-B05)', async () => {
+    const { store, maria } = await base();
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+    const session = await repo.openCashSession({
+      store_id: store.id,
+      user_id: maria.id,
+      opening_cents: 0,
+    });
+
+    const customer = await repo.createCustomer({
+      store_id: store.id,
+      name: 'Doña Juanita',
+      phone: '5555555555',
+      notes: null,
+      credit_limit_cents: 10000,
+    });
+
+    await repo.checkout({
+      store_id: store.id,
+      user_id: maria.id,
+      client_uuid: 'uuid-fiado',
+      subtotal_cents: 3200,
+      discount_cents: 0,
+      total_cents: 3200,
+      customer_id: customer.id,
+      lines: [
+        {
+          product_id: arroz.id,
+          name: arroz.name,
+          sale_unit: 'piece',
+          qty: 1,
+          unit_price_cents: 3200,
+          line_total_cents: 3200,
+          discount_cents: 0,
+          weight_grams: null,
+        },
+      ],
+      payments: [{ method: 'credit', amount_cents: 3200, reference: null }],
+    });
+
+    let statement = await repo.getCustomerStatement(customer.id);
+    expect(statement.balance_cents).toBe(3200);
+    expect(statement.sales).toHaveLength(1);
+
+    await repo.createCustomerPayment({
+      store_id: store.id,
+      customer_id: customer.id,
+      amount_cents: 1200,
+      method: 'cash',
+      cash_session_id: session.id,
+      user_id: maria.id,
+    });
+
+    statement = await repo.getCustomerStatement(customer.id);
+    expect(statement.balance_cents).toBe(2000);
+    expect(statement.payments).toHaveLength(1);
+
+    // El abono en efectivo entra al corte de caja.
+    const summary = await repo.getCashSummary(session.id);
+    expect(summary.cash_sales_cents).toBe(1200);
+
+    await expect(
+      repo.createCustomerPayment({
+        store_id: store.id,
+        customer_id: customer.id,
+        amount_cents: 0,
+        method: 'cash',
+        cash_session_id: null,
+        user_id: maria.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('registra consumo interno con nota obligatoria (F-C01)', async () => {
+    const { store, maria } = await base();
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+    const stockAntes = arroz.stock_qty;
+
+    await repo.recordInternalUse({
+      store_id: store.id,
+      product_id: arroz.id,
+      qty: 2,
+      reason: 'Consumo del personal',
+      user_id: maria.id,
+    });
+
+    const despues = (await repo.listProducts()).find((p) => p.id === arroz.id)!;
+    expect(despues.stock_qty).toBe(stockAntes - 2);
+
+    await expect(
+      repo.recordInternalUse({
+        store_id: store.id,
+        product_id: arroz.id,
+        qty: 1,
+        reason: '   ',
+        user_id: maria.id,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('registra un cambio con proveedor sin costo (F-A04)', async () => {
+    const { store, maria } = await base();
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+
+    await repo.createPurchase({
+      store_id: store.id,
+      supplier_id: null,
+      user_id: maria.id,
+      invoice_ref: null,
+      invoice_file_url: null,
+      items: [{ product_id: arroz.id, qty: 6, unit_cost_cents: 2000, expires_on: '2030-01-01' }],
+    });
+    const lot = (await repo.listExpiringLots(3650)).find((l) => l.product_id === arroz.id)!;
+
+    await repo.createSupplierExchange({
+      store_id: store.id,
+      supplier_id: null,
+      user_id: maria.id,
+      notes: 'Producto vencido',
+      items: [
+        {
+          product_id: arroz.id,
+          lot_id: lot.id,
+          qty_returned: 6,
+          qty_received: 6,
+          new_expires_on: '2032-01-01',
+          reason: 'expired',
+        },
+      ],
+    });
+
+    const lots = (await repo.listExpiringLots(3650)).filter((l) => l.product_id === arroz.id);
+    expect(lots.some((l) => l.expires_on === '2032-01-01' && l.qty === 6)).toBe(true);
+  });
+
+  it('crea órdenes de compra y cambia su estado (F-A06)', async () => {
+    const { store, maria } = await base();
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+
+    const created = await repo.createPurchaseOrder({
+      store_id: store.id,
+      supplier_id: null,
+      user_id: maria.id,
+      expected_on: null,
+      notes: null,
+      items: [{ product_id: arroz.id, qty: 10, unit_cost_cents: 2000 }],
+    });
+    expect(created.order.status).toBe('draft');
+    expect(created.items).toHaveLength(1);
+
+    const listed = await repo.listPurchaseOrders(store.id);
+    expect(listed).toHaveLength(1);
+
+    const sent = await repo.setPurchaseOrderStatus(created.order.id, 'sent');
+    expect(sent.status).toBe('sent');
+  });
+
+  it('guarda la agenda de proveedores y sus visitas (F-A02, F-A08)', async () => {
+    const { store, maria } = await base();
+    const supplier = await repo.createSupplier({
+      store_id: store.id,
+      name: 'Distribuidora Norte',
+      phone: '5551234567',
+      notes: null,
+      type: 'regional',
+    });
+
+    const schedule = await repo.saveSchedule({
+      store_id: store.id,
+      supplier_id: supplier.id,
+      weekday: 1,
+      order_cutoff_time: '11:00',
+      notes: null,
+    });
+    expect((await repo.listSchedules(store.id))).toHaveLength(1);
+
+    await repo.deleteSchedule(schedule.id);
+    expect((await repo.listSchedules(store.id))).toHaveLength(0);
+
+    await repo.markVisit({
+      store_id: store.id,
+      supplier_id: supplier.id,
+      visit_date: '2026-05-04',
+      status: 'done',
+      notes: null,
+    });
+    const visits = await repo.listVisits(store.id, '2026-05-04', '2026-05-04');
+    expect(visits).toHaveLength(1);
+    expect(visits[0].status).toBe('done');
+    void maria;
+  });
+});

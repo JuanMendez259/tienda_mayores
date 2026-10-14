@@ -21,11 +21,27 @@ export type Milliliters = number;
 export type UserRole = 'owner' | 'manager' | 'cashier';
 export type SaleUnit = 'piece' | 'weight' | 'volume';
 export type SaleStatus = 'open' | 'held' | 'paid' | 'cancelled';
-export type StockMovementType = 'sale' | 'purchase' | 'adjustment' | 'waste' | 'return';
-export type PaymentMethod = 'cash' | 'card_clip' | 'mercadopago_qr' | 'mercadopago_terminal';
+export type StockMovementType =
+  | 'sale'
+  | 'purchase'
+  | 'adjustment'
+  | 'waste'
+  | 'return'
+  | 'supplier_exchange_out'
+  | 'supplier_exchange_in'
+  | 'internal_use';
+export type PaymentMethod =
+  | 'cash'
+  | 'card_clip'
+  | 'mercadopago_qr'
+  | 'mercadopago_terminal'
+  | 'credit';
 export type CashMovementType = 'withdrawal' | 'deposit';
 export type FontSize = 'normal' | 'grande' | 'muy_grande';
 export type PromotionType = 'bogo' | 'qty_discount';
+export type SupplierType = 'local' | 'regional' | 'national';
+export type PurchaseOrderStatus = 'draft' | 'sent' | 'received' | 'cancelled';
+export type SupplierVisitStatus = 'scheduled' | 'done' | 'skipped';
 
 /** Secciones que el dueño puede mostrar u ocultar (F-703). */
 export interface StoreModules {
@@ -56,6 +72,10 @@ export interface Store {
   ticket_width_mm: number;
   /** Prefijo de país para el enlace de WhatsApp (F-302, 8.4). */
   whatsapp_country_code: string;
+  /** El cajero puede cobrar a fiado (sección 5). */
+  credit_cashier_allowed: boolean;
+  /** El cajero puede registrar consumo interno (sección 5). */
+  internal_use_cashier_allowed: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +127,10 @@ export interface Product {
   /** Unidades base: piezas / gramos / mililitros (entero). */
   stock_qty: number;
   low_stock_threshold: number;
+  /** Proveedor habitual del producto (F-A01), o null. */
+  supplier_id: string | null;
+  /** Marca o franquicia (F-A09), o null. */
+  brand: string | null;
   active: boolean;
   created_by: string | null;
   created_at: string;
@@ -142,6 +166,8 @@ export interface Sale {
   synced_at: string | null;
   /** Idempotencia de ventas offline (Fase 3). */
   client_uuid: string;
+  /** Cliente del fiado (F-B02), o null en ventas normales. */
+  customer_id: string | null;
 }
 
 export interface SaleItem {
@@ -205,9 +231,100 @@ export interface Supplier {
   name: string;
   phone: string | null;
   notes: string | null;
+  /** local | regional | national (F-A01). */
+  type: SupplierType;
   active: boolean;
   created_at: string;
   updated_at: string;
+}
+
+/** Día de visita y hora límite de pedido de un proveedor (F-A02, F-A07). */
+export interface SupplierSchedule {
+  id: string;
+  store_id: string;
+  supplier_id: string;
+  /** 0 = domingo … 6 = sábado. */
+  weekday: number;
+  /** Hora límite para pedir (HH:MM). */
+  order_cutoff_time: string;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface SupplierVisit {
+  id: string;
+  store_id: string;
+  supplier_id: string;
+  visit_date: string;
+  status: SupplierVisitStatus;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface PurchaseOrder {
+  id: string;
+  store_id: string;
+  supplier_id: string | null;
+  status: PurchaseOrderStatus;
+  user_id: string | null;
+  expected_on: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  purchase_order_id: string;
+  product_id: string;
+  qty: number;
+  unit_cost_cents: Cents;
+}
+
+export interface SupplierExchange {
+  id: string;
+  store_id: string;
+  supplier_id: string | null;
+  visit_id: string | null;
+  user_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface SupplierExchangeItem {
+  id: string;
+  exchange_id: string;
+  product_id: string;
+  lot_id: string | null;
+  qty_returned: number;
+  qty_received: number;
+  new_expires_on: string | null;
+  /** 'expired' | 'near_expiry'. */
+  reason: string;
+}
+
+/** Cliente de fiado (F-B01). No es un registro general de clientes. */
+export interface Customer {
+  id: string;
+  store_id: string;
+  name: string;
+  phone: string | null;
+  notes: string | null;
+  credit_limit_cents: Cents | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CustomerPayment {
+  id: string;
+  store_id: string;
+  customer_id: string;
+  amount_cents: Cents;
+  method: PaymentMethod;
+  cash_session_id: string | null;
+  user_id: string | null;
+  created_at: string;
 }
 
 export interface Purchase {
@@ -265,7 +382,7 @@ export interface ProductLot {
 type Insert<T, Optional extends keyof T> = Omit<T, Optional> & Partial<Pick<T, Optional>>;
 type Update<T> = Partial<T>;
 
-export type StoreInsert = Insert<Store, 'id' | 'timezone' | 'created_at' | 'updated_at' | 'logo_url' | 'ticket_footer' | 'font_size' | 'primary_color' | 'discount_requires_manager' | 'modules' | 'expiry_alert_days' | 'ticket_width_mm' | 'whatsapp_country_code'>;
+export type StoreInsert = Insert<Store, 'id' | 'timezone' | 'created_at' | 'updated_at' | 'logo_url' | 'ticket_footer' | 'font_size' | 'primary_color' | 'discount_requires_manager' | 'modules' | 'expiry_alert_days' | 'ticket_width_mm' | 'whatsapp_country_code' | 'credit_cashier_allowed' | 'internal_use_cashier_allowed'>;
 export type StoreUpdate = Update<Store>;
 
 export type AppUserInsert = Insert<
@@ -282,7 +399,7 @@ export type ProductInsert = Insert<
   Product,
   | 'id' | 'sale_unit' | 'cost_cents' | 'barcode' | 'is_generated_barcode' | 'track_stock'
   | 'stock_qty' | 'low_stock_threshold' | 'active' | 'created_by' | 'created_at' | 'updated_at'
-  | 'image_url' | 'category_id'
+  | 'image_url' | 'category_id' | 'supplier_id' | 'brand'
 >;
 export type ProductUpdate = Update<Product>;
 
@@ -292,7 +409,7 @@ export type StockMovementUpdate = Update<StockMovement>;
 export type SaleInsert = Insert<
   Sale,
   | 'id' | 'number' | 'status' | 'subtotal_cents' | 'discount_cents' | 'total_cents'
-  | 'created_at' | 'paid_at' | 'synced_at' | 'client_uuid'
+  | 'created_at' | 'paid_at' | 'synced_at' | 'client_uuid' | 'customer_id'
 >;
 export type SaleUpdate = Update<Sale>;
 
@@ -314,7 +431,7 @@ export type CashMovementUpdate = Update<CashMovement>;
 export type AuditLogInsert = Insert<AuditLog, 'id' | 'created_at' | 'store_id' | 'user_id' | 'entity_id' | 'before' | 'after'>;
 export type AuditLogUpdate = Update<AuditLog>;
 
-export type SupplierInsert = Insert<Supplier, 'id' | 'active' | 'created_at' | 'updated_at' | 'phone' | 'notes'>;
+export type SupplierInsert = Insert<Supplier, 'id' | 'active' | 'created_at' | 'updated_at' | 'phone' | 'notes' | 'type'>;
 export type SupplierUpdate = Update<Supplier>;
 
 export type PurchaseInsert = Insert<Purchase, 'id' | 'user_id' | 'total_cents' | 'invoice_ref' | 'invoice_file_url' | 'created_at' | 'supplier_id'>;
@@ -328,6 +445,33 @@ export type PromotionUpdate = Update<Promotion>;
 
 export type ProductLotInsert = Insert<ProductLot, 'id' | 'qty' | 'expires_on' | 'received_at' | 'supplier_id' | 'purchase_id' | 'created_at' | 'updated_at'>;
 export type ProductLotUpdate = Update<ProductLot>;
+
+export type SupplierScheduleInsert = Insert<SupplierSchedule, 'id' | 'order_cutoff_time' | 'notes' | 'created_at'>;
+export type SupplierScheduleUpdate = Update<SupplierSchedule>;
+
+export type SupplierVisitInsert = Insert<SupplierVisit, 'id' | 'visit_date' | 'status' | 'notes' | 'created_at'>;
+export type SupplierVisitUpdate = Update<SupplierVisit>;
+
+export type PurchaseOrderInsert = Insert<
+  PurchaseOrder,
+  'id' | 'status' | 'user_id' | 'expected_on' | 'notes' | 'created_at' | 'updated_at' | 'supplier_id'
+>;
+export type PurchaseOrderUpdate = Update<PurchaseOrder>;
+
+export type PurchaseOrderItemInsert = Insert<PurchaseOrderItem, 'id' | 'qty' | 'unit_cost_cents'>;
+export type PurchaseOrderItemUpdate = Update<PurchaseOrderItem>;
+
+export type SupplierExchangeInsert = Insert<SupplierExchange, 'id' | 'supplier_id' | 'visit_id' | 'user_id' | 'notes' | 'created_at'>;
+export type SupplierExchangeUpdate = Update<SupplierExchange>;
+
+export type SupplierExchangeItemInsert = Insert<SupplierExchangeItem, 'id' | 'lot_id' | 'qty_returned' | 'qty_received' | 'new_expires_on' | 'reason'>;
+export type SupplierExchangeItemUpdate = Update<SupplierExchangeItem>;
+
+export type CustomerInsert = Insert<Customer, 'id' | 'phone' | 'notes' | 'credit_limit_cents' | 'active' | 'created_at' | 'updated_at'>;
+export type CustomerUpdate = Update<Customer>;
+
+export type CustomerPaymentInsert = Insert<CustomerPayment, 'id' | 'method' | 'cash_session_id' | 'user_id' | 'created_at'>;
+export type CustomerPaymentUpdate = Update<CustomerPayment>;
 
 /** Mapa de tablas -> Row/Insert/Update (para tipar el cliente de Supabase). */
 export interface Database {
@@ -349,6 +493,14 @@ export interface Database {
       purchase_item:  { Row: PurchaseItem;  Insert: PurchaseItemInsert;  Update: PurchaseItemUpdate };
       promotion:      { Row: Promotion;     Insert: PromotionInsert;     Update: PromotionUpdate };
       product_lot:    { Row: ProductLot;    Insert: ProductLotInsert;    Update: ProductLotUpdate };
+      supplier_schedule:      { Row: SupplierSchedule;      Insert: SupplierScheduleInsert;      Update: SupplierScheduleUpdate };
+      supplier_visit:         { Row: SupplierVisit;         Insert: SupplierVisitInsert;         Update: SupplierVisitUpdate };
+      purchase_order:         { Row: PurchaseOrder;         Insert: PurchaseOrderInsert;         Update: PurchaseOrderUpdate };
+      purchase_order_item:    { Row: PurchaseOrderItem;     Insert: PurchaseOrderItemInsert;     Update: PurchaseOrderItemUpdate };
+      supplier_exchange:      { Row: SupplierExchange;      Insert: SupplierExchangeInsert;      Update: SupplierExchangeUpdate };
+      supplier_exchange_item: { Row: SupplierExchangeItem;  Insert: SupplierExchangeItemInsert;  Update: SupplierExchangeItemUpdate };
+      customer:               { Row: Customer;              Insert: CustomerInsert;              Update: CustomerUpdate };
+      customer_payment:       { Row: CustomerPayment;       Insert: CustomerPaymentInsert;       Update: CustomerPaymentUpdate };
     };
     Functions: {
       /** Valida el PIN y aplica el límite de intentos. Solo backend. */

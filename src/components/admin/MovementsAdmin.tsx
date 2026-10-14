@@ -17,6 +17,9 @@ const TYPE_LABELS: Record<StockMovementType, string> = {
   adjustment: 'Ajuste',
   waste: 'Merma',
   return: 'Devolución',
+  supplier_exchange_out: 'Cambio proveedor (sale)',
+  supplier_exchange_in: 'Cambio proveedor (entra)',
+  internal_use: 'Consumo interno',
 };
 
 /** Historial de movimientos de inventario con filtros (F-506). */

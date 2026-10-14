@@ -5,6 +5,9 @@ import type {
   CashMovementType,
   CashSession,
   Category,
+  Customer,
+  CustomerPayment,
+  CustomerUpdate,
   Payment,
   PaymentMethod,
   Product,
@@ -13,29 +16,44 @@ import type {
   Promotion,
   Purchase,
   PurchaseItem,
+  PurchaseOrder,
+  PurchaseOrderItem,
   Sale,
   SaleItem,
   StockMovement,
   Store,
   StoreUpdate,
   Supplier,
+  SupplierExchange,
+  SupplierExchangeItem,
+  SupplierSchedule,
   SupplierUpdate,
+  SupplierVisit,
 } from '../types/database';
 import { uid } from '../lib/uid';
 import type {
   CashSummary,
   CheckoutInput,
   CreatePurchaseInput,
+  CreatePurchaseOrderInput,
+  CreateSupplierExchangeInput,
+  CustomerPaymentInput,
+  CustomerStatement,
   HeldSaleInput,
+  InternalUseInput,
+  NewCustomerInput,
   NewProductInput,
   NewSupplierInput,
   OpenCashInput,
   PromotionInput,
+  PurchaseOrderWithItems,
   ReportRange,
   Repository,
   SaleWithItems,
   StockAdjustmentInput,
   StockMovementFilter,
+  SupplierScheduleInput,
+  SupplierVisitInput,
 } from './repository';
 import {
   DEMO_STORE_ID,
@@ -70,6 +88,14 @@ function createLocalRepository(): Repository {
   const purchaseItems = new Map<string, PurchaseItem[]>();
   const promotions = new Map<string, Promotion>(); // por product_id (único)
   const lots = new Map<string, ProductLot>();
+  const schedules = new Map<string, SupplierSchedule>();
+  const visits = new Map<string, SupplierVisit>();
+  const purchaseOrders = new Map<string, PurchaseOrder>();
+  const purchaseOrderItems = new Map<string, PurchaseOrderItem[]>();
+  const exchanges = new Map<string, SupplierExchange>();
+  const exchangeItems = new Map<string, SupplierExchangeItem[]>();
+  const customers = new Map<string, Customer>();
+  const customerPayments = new Map<string, CustomerPayment[]>();
   const auditLogs: AuditLog[] = [];
   const stockMovements: StockMovement[] = [];
   let saleCounter = 0;
@@ -172,15 +198,21 @@ function createLocalRepository(): Repository {
       .flatMap((s) => paymentsBySale.get(s.id) ?? [])
       .filter((p) => p.method === 'cash')
       .reduce((acc, p) => acc + p.amount_cents, 0);
+    // Abonos de fiado cobrados en efectivo dentro de esta sesión (F-B04).
+    const creditCash = [...customerPayments.values()]
+      .flat()
+      .filter((p) => p.cash_session_id === sessionId && p.method === 'cash')
+      .reduce((acc, p) => acc + p.amount_cents, 0);
+    const totalCashSales = cashSales + creditCash;
     const movements = (cashMovements.get(sessionId) ?? []).reduce(
       (acc, m) => acc + (m.type === 'deposit' ? m.amount_cents : -m.amount_cents),
       0,
     );
     return {
       opening_cents: session.opening_cents,
-      cash_sales_cents: cashSales,
+      cash_sales_cents: totalCashSales,
       movements_cents: movements,
-      expected_cents: session.opening_cents + cashSales + movements,
+      expected_cents: session.opening_cents + totalCashSales + movements,
     };
   }
 
@@ -232,6 +264,8 @@ function createLocalRepository(): Repository {
     async createProduct(input: NewProductInput) {
       const product: Product = {
         ...input,
+        supplier_id: input.supplier_id ?? null,
+        brand: input.brand ?? null,
         id: uid(),
         active: true,
         created_at: nowIso(),
@@ -263,6 +297,7 @@ function createLocalRepository(): Repository {
     async createSupplier(input: NewSupplierInput) {
       const supplier: Supplier = {
         ...input,
+        type: input.type ?? 'local',
         id: uid(),
         active: true,
         created_at: nowIso(),
@@ -528,6 +563,7 @@ function createLocalRepository(): Repository {
         paid_at: nowIso(),
         synced_at: nowIso(),
         client_uuid: input.client_uuid,
+        customer_id: input.customer_id ?? null,
       };
       const payments: Payment[] = input.payments.map((p) => ({
         id: uid(),
@@ -551,6 +587,7 @@ function createLocalRepository(): Repository {
         paid_at: null,
         synced_at: nowIso(),
         client_uuid: input.client_uuid,
+        customer_id: null,
       };
       return persistSale(base, buildItems(input), []);
     },
@@ -634,6 +671,294 @@ function createLocalRepository(): Repository {
     },
     async listCashMovements(sessionId: string) {
       return clone(cashMovements.get(sessionId) ?? []);
+    },
+
+    // ----------------------------------------------------------
+    // v2 · Agenda de surtidores y visitas (F-A02, F-A07, F-A08)
+    // ----------------------------------------------------------
+    async listSchedules(storeId: string) {
+      return clone([...schedules.values()].filter((s) => s.store_id === storeId));
+    },
+    async saveSchedule(input: SupplierScheduleInput) {
+      const existing = input.id ? schedules.get(input.id) : undefined;
+      const schedule: SupplierSchedule = {
+        id: input.id ?? uid(),
+        store_id: input.store_id,
+        supplier_id: input.supplier_id,
+        weekday: input.weekday,
+        order_cutoff_time: input.order_cutoff_time,
+        notes: input.notes,
+        created_at: existing?.created_at ?? nowIso(),
+      };
+      schedules.set(schedule.id, schedule);
+      return clone(schedule);
+    },
+    async deleteSchedule(id: string) {
+      schedules.delete(id);
+    },
+    async listVisits(storeId: string, from: string, to: string) {
+      return clone(
+        [...visits.values()].filter(
+          (v) => v.store_id === storeId && v.visit_date >= from && v.visit_date <= to,
+        ),
+      );
+    },
+    async markVisit(input: SupplierVisitInput) {
+      const existing = [...visits.values()].find(
+        (v) => v.supplier_id === input.supplier_id && v.visit_date === input.visit_date,
+      );
+      if (existing) {
+        const updated: SupplierVisit = { ...existing, ...input };
+        visits.set(updated.id, updated);
+        return clone(updated);
+      }
+      const visit: SupplierVisit = { id: uid(), created_at: nowIso(), ...input };
+      visits.set(visit.id, visit);
+      return clone(visit);
+    },
+
+    // ----------------------------------------------------------
+    // v2 · Órdenes de compra (F-A06)
+    // ----------------------------------------------------------
+    async listPurchaseOrders(storeId: string): Promise<PurchaseOrderWithItems[]> {
+      return [...purchaseOrders.values()]
+        .filter((order) => order.store_id === storeId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((order) => ({
+          order: clone(order),
+          items: clone(purchaseOrderItems.get(order.id) ?? []),
+        }));
+    },
+    async createPurchaseOrder(input: CreatePurchaseOrderInput) {
+      const order: PurchaseOrder = {
+        id: uid(),
+        store_id: input.store_id,
+        supplier_id: input.supplier_id,
+        status: 'draft',
+        user_id: input.user_id,
+        expected_on: input.expected_on,
+        notes: input.notes,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
+      const items: PurchaseOrderItem[] = input.items.map((item) => ({
+        id: uid(),
+        purchase_order_id: order.id,
+        product_id: item.product_id,
+        qty: item.qty,
+        unit_cost_cents: item.unit_cost_cents,
+      }));
+      purchaseOrders.set(order.id, order);
+      purchaseOrderItems.set(order.id, items);
+      return { order: clone(order), items: clone(items) };
+    },
+    async setPurchaseOrderStatus(id: string, status) {
+      const order = purchaseOrders.get(id);
+      if (!order) throw new Error('Orden de compra no encontrada');
+      const updated: PurchaseOrder = { ...order, status, updated_at: nowIso() };
+      purchaseOrders.set(id, updated);
+      return clone(updated);
+    },
+
+    // ----------------------------------------------------------
+    // v2 · Cambios con proveedor sin costo (F-A04)
+    // ----------------------------------------------------------
+    async createSupplierExchange(input: CreateSupplierExchangeInput) {
+      const exchange: SupplierExchange = {
+        id: uid(),
+        store_id: input.store_id,
+        supplier_id: input.supplier_id,
+        visit_id: null,
+        user_id: input.user_id,
+        notes: input.notes,
+        created_at: nowIso(),
+      };
+      exchanges.set(exchange.id, exchange);
+      const created: SupplierExchangeItem[] = [];
+      for (const item of input.items) {
+        const product = products.get(item.product_id);
+        if (item.qty_returned > 0) {
+          if (item.lot_id) {
+            const lot = lots.get(item.lot_id);
+            if (lot) {
+              lots.set(lot.id, {
+                ...lot,
+                qty: Math.max(0, lot.qty - item.qty_returned),
+                updated_at: nowIso(),
+              });
+            }
+          }
+          if (product?.track_stock) {
+            product.stock_qty = Math.max(0, product.stock_qty - item.qty_returned);
+          }
+        }
+        if (item.qty_received > 0 && product?.track_stock) {
+          product.stock_qty += item.qty_received;
+          const newLot: ProductLot = {
+            id: uid(),
+            store_id: input.store_id,
+            product_id: item.product_id,
+            qty: item.qty_received,
+            expires_on: item.new_expires_on,
+            received_at: nowIso(),
+            supplier_id: input.supplier_id,
+            purchase_id: null,
+            created_at: nowIso(),
+            updated_at: nowIso(),
+          };
+          lots.set(newLot.id, newLot);
+        }
+        created.push({
+          id: uid(),
+          exchange_id: exchange.id,
+          product_id: item.product_id,
+          lot_id: item.lot_id,
+          qty_returned: item.qty_returned,
+          qty_received: item.qty_received,
+          new_expires_on: item.new_expires_on,
+          reason: item.reason,
+        });
+        if (item.qty_returned > 0) {
+          stockMovements.push({
+            id: uid(),
+            store_id: input.store_id,
+            product_id: item.product_id,
+            type: 'supplier_exchange_out',
+            qty: -item.qty_returned,
+            reason: 'Cambio con proveedor (sale)',
+            user_id: input.user_id,
+            sale_id: null,
+            lot_id: item.lot_id,
+            created_at: nowIso(),
+          });
+        }
+        if (item.qty_received > 0) {
+          stockMovements.push({
+            id: uid(),
+            store_id: input.store_id,
+            product_id: item.product_id,
+            type: 'supplier_exchange_in',
+            qty: item.qty_received,
+            reason: 'Cambio con proveedor (entra)',
+            user_id: input.user_id,
+            sale_id: null,
+            lot_id: null,
+            created_at: nowIso(),
+          });
+        }
+      }
+      exchangeItems.set(exchange.id, created);
+      return clone(exchange);
+    },
+
+    // ----------------------------------------------------------
+    // v2 · Consumo interno (F-C01)
+    // ----------------------------------------------------------
+    async recordInternalUse(input: InternalUseInput) {
+      if (!input.reason.trim()) {
+        throw new Error('La nota es obligatoria para el consumo interno.');
+      }
+      const product = products.get(input.product_id);
+      if (product?.track_stock) {
+        product.stock_qty = Math.max(0, product.stock_qty - input.qty);
+      }
+      consumeLotsFefo(input.product_id, input.qty);
+      const movement: StockMovement = {
+        id: uid(),
+        store_id: input.store_id,
+        product_id: input.product_id,
+        type: 'internal_use',
+        qty: -input.qty,
+        reason: input.reason,
+        user_id: input.user_id,
+        sale_id: null,
+        lot_id: null,
+        created_at: nowIso(),
+      };
+      stockMovements.push(movement);
+      return clone(movement);
+    },
+
+    // ----------------------------------------------------------
+    // v2 · Fiado (F-B01 a F-B06)
+    // ----------------------------------------------------------
+    async listCustomers(storeId: string) {
+      return clone(
+        [...customers.values()]
+          .filter((c) => c.store_id === storeId && c.active)
+          .sort((a, b) => a.name.localeCompare(b.name)),
+      );
+    },
+    async createCustomer(input: NewCustomerInput) {
+      const customer: Customer = {
+        id: uid(),
+        store_id: input.store_id,
+        name: input.name,
+        phone: input.phone,
+        notes: input.notes,
+        credit_limit_cents: input.credit_limit_cents,
+        active: true,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
+      customers.set(customer.id, customer);
+      return clone(customer);
+    },
+    async updateCustomer(id: string, patch: CustomerUpdate) {
+      const current = customers.get(id);
+      if (!current) throw new Error('Cliente no encontrado');
+      const updated: Customer = { ...current, ...patch, updated_at: nowIso() };
+      customers.set(id, updated);
+      return clone(updated);
+    },
+    async listCustomerPayments(customerId: string) {
+      return clone(customerPayments.get(customerId) ?? []);
+    },
+    async createCustomerPayment(input: CustomerPaymentInput) {
+      if (input.amount_cents <= 0) throw new Error('El abono debe ser mayor a cero.');
+      const payment: CustomerPayment = {
+        id: uid(),
+        store_id: input.store_id,
+        customer_id: input.customer_id,
+        amount_cents: input.amount_cents,
+        method: input.method,
+        cash_session_id: input.cash_session_id,
+        user_id: input.user_id,
+        created_at: nowIso(),
+      };
+      customerPayments.set(input.customer_id, [
+        ...(customerPayments.get(input.customer_id) ?? []),
+        payment,
+      ]);
+      return clone(payment);
+    },
+    async getCustomerStatement(customerId: string): Promise<CustomerStatement> {
+      const customer = customers.get(customerId);
+      if (!customer) throw new Error('Cliente no encontrado');
+      const creditSales = [...sales.values()]
+        .filter((s) => s.customer_id === customerId && s.status === 'paid')
+        .sort((a, b) => a.created_at.localeCompare(b.created_at));
+      const payments = customerPayments.get(customerId) ?? [];
+      let remainingPaid = payments.reduce((acc, p) => acc + p.amount_cents, 0);
+      const now = Date.now();
+      let balance = 0;
+      let overdue = 0;
+      const withBalance: CustomerStatement['sales'] = creditSales.map((sale) => {
+        const applied = Math.min(remainingPaid, sale.total_cents);
+        remainingPaid -= applied;
+        const saleBalance = sale.total_cents - applied;
+        balance += saleBalance;
+        const ageDays = (now - new Date(sale.created_at).getTime()) / 86400000;
+        if (ageDays > 30 && saleBalance > 0) overdue += saleBalance;
+        return { sale: clone(sale), paid_cents: applied, balance_cents: saleBalance };
+      });
+      return {
+        customer: clone(customer),
+        sales: withBalance,
+        payments: clone(payments),
+        balance_cents: balance,
+        overdue_cents: overdue,
+      };
     },
   };
 }

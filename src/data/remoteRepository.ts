@@ -4,26 +4,41 @@ import type {
   CashMovementType,
   CashSession,
   Category,
+  Customer,
+  CustomerPayment,
+  CustomerUpdate,
   Product,
   ProductUpdate,
   ProductLot,
   Promotion,
+  PurchaseOrder,
+  PurchaseOrderStatus,
   StockMovement,
   Store,
   StoreUpdate,
   Supplier,
+  SupplierExchange,
+  SupplierSchedule,
   SupplierUpdate,
+  SupplierVisit,
 } from '../types/database';
 import { supabase } from './client';
 import type {
   CashSummary,
   CheckoutInput,
   CreatePurchaseInput,
+  CreatePurchaseOrderInput,
+  CreateSupplierExchangeInput,
+  CustomerPaymentInput,
+  CustomerStatement,
   HeldSaleInput,
+  InternalUseInput,
+  NewCustomerInput,
   NewProductInput,
   NewSupplierInput,
   OpenCashInput,
   PromotionInput,
+  PurchaseOrderWithItems,
   PurchaseWithItems,
   ReportData,
   ReportRange,
@@ -31,6 +46,8 @@ import type {
   SaleWithItems,
   StockAdjustmentInput,
   StockMovementFilter,
+  SupplierScheduleInput,
+  SupplierVisitInput,
 } from './repository';
 
 /** Tiempo máximo por llamada al servidor antes de abortar (evita cuelgues). */
@@ -75,6 +92,36 @@ export const remoteRepository: Repository = {
   savePromotion: (input: PromotionInput) => call<Promotion>('savePromotion', { input }),
   deletePromotion: (id: string) => call<void>('deletePromotion', { id }),
   listExpiringLots: (days: number) => call<ProductLot[]>('listExpiringLots', { days }),
+
+  listSchedules: (storeId: string) => call<SupplierSchedule[]>('listSchedules', { storeId }),
+  saveSchedule: (input: SupplierScheduleInput) => call<SupplierSchedule>('saveSchedule', { input }),
+  deleteSchedule: (id: string) => call<void>('deleteSchedule', { id }),
+  listVisits: (storeId: string, from: string, to: string) =>
+    call<SupplierVisit[]>('listVisits', { storeId, from, to }),
+  markVisit: (input: SupplierVisitInput) => call<SupplierVisit>('markVisit', { input }),
+
+  listPurchaseOrders: (storeId: string) =>
+    call<PurchaseOrderWithItems[]>('listPurchaseOrders', { storeId }),
+  createPurchaseOrder: (input: CreatePurchaseOrderInput) =>
+    call<PurchaseOrderWithItems>('createPurchaseOrder', { input }),
+  setPurchaseOrderStatus: (id: string, status: PurchaseOrderStatus) =>
+    call<PurchaseOrder>('setPurchaseOrderStatus', { id, status }),
+
+  createSupplierExchange: (input: CreateSupplierExchangeInput) =>
+    call<SupplierExchange>('createSupplierExchange', { input }),
+
+  recordInternalUse: (input: InternalUseInput) => call<StockMovement>('recordInternalUse', { input }),
+
+  listCustomers: (storeId: string) => call<Customer[]>('listCustomers', { storeId }),
+  createCustomer: (input: NewCustomerInput) => call<Customer>('createCustomer', { input }),
+  updateCustomer: (id: string, patch: CustomerUpdate) =>
+    call<Customer>('updateCustomer', { id, patch }),
+  listCustomerPayments: (customerId: string) =>
+    call<CustomerPayment[]>('listCustomerPayments', { customerId }),
+  createCustomerPayment: (input: CustomerPaymentInput) =>
+    call<CustomerPayment>('createCustomerPayment', { input }),
+  getCustomerStatement: (customerId: string) =>
+    call<CustomerStatement>('getCustomerStatement', { customerId }),
 
   getReport: (range: ReportRange) => call<ReportData>('getReport', { range }),
 

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { PaymentMethod } from '../types/database';
+import { useMemo, useState } from 'react';
+import type { Customer, PaymentMethod } from '../types/database';
 import type { PaymentInput } from '../data';
 import { changeDue, formatMXN, parseAmountToCents } from '../lib/money';
 import { PAYMENT_METHOD_LABELS, paymentProviders } from '../devices/payments';
@@ -7,14 +7,18 @@ import { NumericKeypad } from './NumericKeypad';
 
 interface PaymentModalProps {
   totalCents: number;
+  /** Clientes de fiado disponibles (F-B03). */
+  customers?: Customer[];
+  /** Si se permite cobrar fiado (permiso del cajero). */
+  allowCredit?: boolean;
   onCancel: () => void;
-  onConfirm: (payments: PaymentInput[], receivedCents: number) => void;
+  onConfirm: (payments: PaymentInput[], receivedCents: number, customerId?: string | null) => void;
 }
 
 /** Billetes y monedas frecuentes en México. Cada toque SUMA al recibido (C-01). */
 const QUICK_DENOMS = [5, 10, 20, 50, 100, 200, 500, 1000];
 
-type Mode = 'cash' | 'card_clip' | 'mercadopago_qr';
+type Mode = 'cash' | 'card_clip' | 'mercadopago_qr' | 'credit';
 
 interface Entry {
   method: PaymentMethod;
@@ -28,18 +32,27 @@ const MODE_LABEL: Record<Mode, string> = {
   cash: '💵 Efectivo',
   card_clip: '💳 Clip',
   mercadopago_qr: '📱 M. Pago',
+  credit: '🪙 Fiado',
 };
 
 /**
  * Cobro en efectivo o combinado: efectivo + Clip + Mercado Pago (F-201 a F-204).
- * La suma de los pagos siempre iguala el total de la venta.
+ * La suma de los pagos siempre iguala el total de la venta. Incluye el cobro a
+ * crédito "Fiado" eligiendo al cliente (F-B03).
  */
-export function PaymentModal({ totalCents, onCancel, onConfirm }: PaymentModalProps) {
+export function PaymentModal({
+  totalCents,
+  customers = [],
+  allowCredit = false,
+  onCancel,
+  onConfirm,
+}: PaymentModalProps) {
   const [entries, setEntries] = useState<Entry[]>([]);
   const [mode, setMode] = useState<Mode>('cash');
   const [amount, setAmount] = useState('');
   const [reference, setReference] = useState('');
   const [busy, setBusy] = useState(false);
+  const [customerSearch, setCustomerSearch] = useState('');
 
   const paid = entries.reduce((acc, entry) => acc + entry.appliedCents, 0);
   const remaining = Math.max(0, totalCents - paid);
@@ -47,7 +60,18 @@ export function PaymentModal({ totalCents, onCancel, onConfirm }: PaymentModalPr
   const cashEnough = received >= remaining;
   const cashChange = changeDue(remaining, received);
 
-  function finish(next: Entry[]) {
+  const modes: Mode[] = allowCredit && customers.length > 0
+    ? ['cash', 'card_clip', 'mercadopago_qr', 'credit']
+    : ['cash', 'card_clip', 'mercadopago_qr'];
+
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearch.trim().toLowerCase();
+    const list = customers.filter((c) => c.active);
+    if (!term) return list;
+    return list.filter((c) => c.name.toLowerCase().includes(term));
+  }, [customers, customerSearch]);
+
+  function finish(next: Entry[], customerId?: string | null) {
     const changeTotal = next.reduce(
       (acc, entry) => acc + Math.max(0, entry.receivedCents - entry.appliedCents),
       0,
@@ -57,7 +81,15 @@ export function PaymentModal({ totalCents, onCancel, onConfirm }: PaymentModalPr
       amount_cents: entry.appliedCents,
       reference: entry.reference,
     }));
-    onConfirm(payments, totalCents + changeTotal);
+    onConfirm(payments, totalCents + changeTotal, customerId ?? null);
+  }
+
+  function addCredit(customerId: string) {
+    if (remaining === 0) return;
+    finish([
+      ...entries,
+      { method: 'credit', appliedCents: remaining, reference: null, receivedCents: remaining },
+    ], customerId);
   }
 
   function addCash() {
@@ -128,8 +160,8 @@ export function PaymentModal({ totalCents, onCancel, onConfirm }: PaymentModalPr
           </div>
         )}
 
-        <div className="mb-4 grid grid-cols-3 gap-2">
-          {(['cash', 'card_clip', 'mercadopago_qr'] as Mode[]).map((value) => (
+        <div className={`mb-4 grid gap-2 ${modes.length === 4 ? 'grid-cols-2' : 'grid-cols-3'}`}>
+          {modes.map((value) => (
             <button
               key={value}
               type="button"
@@ -214,6 +246,43 @@ export function PaymentModal({ totalCents, onCancel, onConfirm }: PaymentModalPr
                 </button>
               )}
             </div>
+          </>
+        ) : mode === 'credit' ? (
+          <>
+            <p className="mb-3 rounded-2xl bg-amber-100 p-4 text-lg font-semibold text-amber-900">
+              Todo lo que falta se anota como fiado a nombre del cliente. Elige a quién:
+            </p>
+            <input
+              value={customerSearch}
+              onChange={(event) => setCustomerSearch(event.target.value)}
+              placeholder="Buscar cliente…"
+              className="mb-3 min-h-[56px] w-full rounded-2xl border-2 border-slate-300 px-4 text-xl"
+            />
+            {filteredCustomers.length === 0 ? (
+              <p className="mb-3 text-lg text-slate-500">
+                No hay clientes. Da de alta uno en Administración · Fiado.
+              </p>
+            ) : (
+              <ul className="mb-4 max-h-56 space-y-2 overflow-y-auto">
+                {filteredCustomers.map((customer) => (
+                  <li key={customer.id}>
+                    <button
+                      type="button"
+                      onClick={() => addCredit(customer.id)}
+                      className="card flex w-full items-center justify-between gap-3 p-4 text-left hover:border-green-500"
+                    >
+                      <span className="text-lg font-semibold">{customer.name}</span>
+                      <span className="text-base text-slate-500">
+                        {customer.phone ?? 'sin teléfono'}
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <button type="button" onClick={onCancel} className="btn btn-neutral w-full py-4 text-xl">
+              Cancelar
+            </button>
           </>
         ) : (
           <>

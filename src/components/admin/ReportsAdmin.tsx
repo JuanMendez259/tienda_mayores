@@ -97,24 +97,22 @@ export function ReportsAdmin({ store }: ReportsAdminProps) {
             {report.byDay.length === 0 ? (
               <p className="text-lg text-slate-500">Sin ventas en el periodo.</p>
             ) : (
-              <table className="w-full text-lg">
-                <thead>
-                  <tr className="text-left text-slate-500">
-                    <th className="py-1">Fecha</th>
-                    <th className="py-1 text-right">Ventas</th>
-                    <th className="py-1 text-right">Cantidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {report.byDay.map((day) => (
-                    <tr key={day.date} className="border-t border-slate-200">
-                      <td className="py-1">{day.date}</td>
-                      <td className="py-1 text-right font-semibold">{formatMXN(day.totalCents)}</td>
-                      <td className="py-1 text-right">{day.count}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              <ul className="space-y-2">
+                {report.byDay.map((day) => (
+                  <li
+                    key={day.date}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 p-3"
+                  >
+                    <span className="text-lg font-semibold">{day.date}</span>
+                    <span className="text-right">
+                      <span className="block text-lg font-bold">{formatMXN(day.totalCents)}</span>
+                      <span className="block text-base text-slate-500">
+                        {day.count} venta(s)
+                      </span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
             )}
           </section>
 

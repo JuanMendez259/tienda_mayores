@@ -1,5 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
-import type { AppUser, CashSession, Category, Product, Promotion, SaleItem, Store } from '../types/database';
+import type {
+  AppUser,
+  CashSession,
+  Category,
+  Customer,
+  Product,
+  Promotion,
+  SaleItem,
+  Store,
+  Supplier,
+  SupplierSchedule,
+} from '../types/database';
 import { repository, isRemoteConfigured } from '../data';
 import type { PaymentInput, SaleWithItems } from '../data';
 import {
@@ -34,6 +45,7 @@ import { ConfirmDialog } from './ConfirmDialog';
 import { ProductFormModal } from './ProductFormModal';
 import { DiscountModal } from './DiscountModal';
 import { HelpModal } from './HelpModal';
+import { InternalUseModal } from './InternalUseModal';
 
 interface SaleScreenProps {
   store: Store;
@@ -79,6 +91,10 @@ export function SaleScreen({
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   /** En móvil/tablet se alterna catálogo/carrito; en lg se ven ambos a la vez. */
   const [view, setView] = useState<'catalog' | 'cart'>('catalog');
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [schedules, setSchedules] = useState<SupplierSchedule[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [internalUseOpen, setInternalUseOpen] = useState(false);
 
   // Los descuentos por promoción se calculan al vuelo (F-407).
   const pricedCart = useMemo(() => applyAutoPromotions(cart, promotions), [cart, promotions]);
@@ -90,7 +106,28 @@ export function SaleScreen({
   const total = Math.max(0, cartTotalCents(pricedCart) - orderDiscountCents);
   const count = cartItemCount(pricedCart);
   const canManage = user.role !== 'cashier';
+  const canUseInternalUse = canManage || store.internal_use_cashier_allowed;
+  const allowCredit = canManage || store.credit_cashier_allowed;
   const lowStock = products.filter((p) => p.track_stock && p.stock_qty <= p.low_stock_threshold);
+  const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers]);
+  // Aviso de hora límite de pedido de hoy, en los próximos 3 horas (F-A07).
+  const cutoffAlerts = useMemo(() => {
+    const now = new Date();
+    const weekday = now.getDay();
+    const nowMins = now.getHours() * 60 + now.getMinutes();
+    return schedules
+      .filter((schedule) => schedule.weekday === weekday)
+      .map((schedule) => {
+        const [hours, minutes] = schedule.order_cutoff_time.split(':').map(Number);
+        return { schedule, mins: hours * 60 + (minutes || 0) };
+      })
+      .filter((item) => item.mins >= nowMins && item.mins - nowMins <= 180)
+      .map((item) => ({
+        id: item.schedule.id,
+        name: supplierById.get(item.schedule.supplier_id)?.name ?? 'Proveedor',
+        time: item.schedule.order_cutoff_time,
+      }));
+  }, [schedules, supplierById]);
 
   useEffect(() => {
     let active = true;
@@ -101,6 +138,25 @@ export function SaleScreen({
       active = false;
     };
   }, [promotionsKey]);
+
+  // Clientes de fiado y agenda de proveedores para el cobro y los avisos (F-B03, F-A07).
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      repository.listCustomers(store.id),
+      repository.listSchedules(store.id),
+      repository.listSuppliers(),
+    ]).then(([customerList, scheduleList, supplierList]) => {
+      if (active) {
+        setCustomers(customerList);
+        setSchedules(scheduleList);
+        setSuppliers(supplierList);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [store.id]);
 
   useEffect(() => {
     if (!message) return;
@@ -290,7 +346,7 @@ export function SaleScreen({
     setMessage('Venta cancelada.');
   }
 
-  async function checkout(payments: PaymentInput[], received: number) {
+  async function checkout(payments: PaymentInput[], received: number, customerId?: string | null) {
     if (busy) return;
     setBusy(true);
     const paymentsLabel = paymentsLabelFor(payments);
@@ -303,6 +359,7 @@ export function SaleScreen({
       total_cents: total,
       lines: buildLines(),
       payments,
+      customer_id: customerId ?? null,
     };
 
     // Sin conexión: guardar la venta y enviarla al reconectar (F-704 / sección 9).
@@ -341,6 +398,15 @@ export function SaleScreen({
           </div>
         </div>
         <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+          {canUseInternalUse && (
+            <button
+              type="button"
+              onClick={() => setInternalUseOpen(true)}
+              className="btn btn-neutral px-3 py-3 text-lg sm:px-4"
+            >
+              🧾 Interno
+            </button>
+          )}
           <button type="button" onClick={() => setHelpOpen(true)} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
             ❓ Ayuda
           </button>
@@ -369,6 +435,15 @@ export function SaleScreen({
         <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 text-lg font-semibold text-amber-900">
           <span aria-hidden="true">⚠️</span>
           {lowStock.length} producto(s) con poco stock. Revísalo en Menú → Inventario.
+        </div>
+      )}
+
+      {cutoffAlerts.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2 bg-orange-100 px-4 py-2 text-lg font-semibold text-orange-900">
+          <span aria-hidden="true">⏰</span>
+          <span>
+            Pedido a {cutoffAlerts.map((alert) => `${alert.name} antes de ${alert.time}`).join(' · ')}
+          </span>
         </div>
       )}
 
@@ -515,8 +590,24 @@ export function SaleScreen({
       {paymentOpen && (
         <PaymentModal
           totalCents={total}
+          customers={customers}
+          allowCredit={allowCredit}
           onCancel={() => setPaymentOpen(false)}
           onConfirm={checkout}
+        />
+      )}
+
+      {internalUseOpen && (
+        <InternalUseModal
+          store={store}
+          user={user}
+          products={products}
+          onClose={() => setInternalUseOpen(false)}
+          onDone={(text) => {
+            setInternalUseOpen(false);
+            setMessage(text);
+            onRefreshProducts();
+          }}
         />
       )}
 

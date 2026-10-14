@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import type { Category, Product, SaleUnit } from '../types/database';
+import { useEffect, useState } from 'react';
+import type { Category, Product, SaleUnit, Supplier } from '../types/database';
 import { repository } from '../data';
 import { parseAmountToCents } from '../lib/money';
 import { fileToDataUrl } from '../lib/image';
@@ -36,10 +36,23 @@ export function ProductFormModal({
   const [stock, setStock] = useState(product ? String(product.stock_qty) : '0');
   const [lowStock, setLowStock] = useState(product ? String(product.low_stock_threshold) : '3');
   const [barcode, setBarcode] = useState(product?.barcode ?? initialBarcode);
+  const [brand, setBrand] = useState(product?.brand ?? '');
+  const [supplierId, setSupplierId] = useState(product?.supplier_id ?? '');
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    void repository.listSuppliers().then((list) => {
+      if (active) setSuppliers(list.filter((supplier) => supplier.active));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const stockLabel =
     saleUnit === 'weight' ? 'Gramos en bodega' : saleUnit === 'volume' ? 'Mililitros en bodega' : 'Piezas en bodega';
@@ -74,6 +87,8 @@ export function ProductFormModal({
       track_stock: true,
       stock_qty: Math.max(0, Math.round(Number(stock) || 0)),
       low_stock_threshold: Math.max(0, Math.round(Number(lowStock) || 0)),
+      brand: brand.trim() || null,
+      supplier_id: supplierId || null,
     };
     const saved = product
       ? await repository.updateProduct(product.id, fields)
@@ -159,6 +174,28 @@ export function ProductFormModal({
           <div>
             <label className={label} htmlFor="p-low">Aviso de poco stock</label>
             <input id="p-low" value={lowStock} onChange={(e) => setLowStock(e.target.value)} inputMode="numeric" className={field} />
+          </div>
+
+          <div>
+            <label className={label} htmlFor="p-brand">Marca (opcional)</label>
+            <input id="p-brand" value={brand} onChange={(e) => setBrand(e.target.value)} className={field} />
+          </div>
+
+          <div>
+            <label className={label} htmlFor="p-supplier">Proveedor (opcional)</label>
+            <select
+              id="p-supplier"
+              value={supplierId}
+              onChange={(e) => setSupplierId(e.target.value)}
+              className={field}
+            >
+              <option value="">Sin proveedor</option>
+              {suppliers.map((supplier) => (
+                <option key={supplier.id} value={supplier.id}>
+                  {supplier.name}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div className="sm:col-span-2">

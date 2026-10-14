@@ -212,6 +212,7 @@ function App() {
               users={users}
               products={products}
               categories={categories}
+              cashSessionId={cashSession.id}
               onClose={() => {
                 setAdminOpen(false);
                 setPromotionsKey((key) => key + 1);

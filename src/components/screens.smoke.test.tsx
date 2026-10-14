@@ -120,6 +120,7 @@ describe('render de pantallas (smoke)', () => {
         users={seedUsers}
         products={seedProducts}
         categories={seedCategories}
+        cashSessionId={null}
         onClose={noop}
         onRefreshProducts={noop}
         onStoreSaved={noop}

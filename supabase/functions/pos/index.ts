@@ -58,10 +58,23 @@ async function cashSummary(sessionId: string) {
     .eq('store_id', session.store_id)
     .eq('status', 'paid')
     .gte('paid_at', session.opened_at);
-  const cashSales = (sales ?? [])
+  const cashSalesFromSales = (sales ?? [])
     .flatMap((s: { payment?: Array<{ amount_cents: number; method: string }> }) => s.payment ?? [])
     .filter((p) => p.method === 'cash')
     .reduce((acc, p) => acc + p.amount_cents, 0);
+
+  // Abonos de fiado cobrados en efectivo dentro de esta sesión (F-B04).
+  const { data: creditPayments } = await db
+    .from('customer_payment')
+    .select('amount_cents, method')
+    .eq('cash_session_id', sessionId)
+    .eq('method', 'cash');
+  const cashSales =
+    cashSalesFromSales +
+    (creditPayments ?? []).reduce(
+      (acc: number, p: { amount_cents: number }) => acc + p.amount_cents,
+      0,
+    );
 
   const { data: movements } = await db
     .from('cash_movement')
@@ -101,6 +114,21 @@ async function consumeLotsFefo(productId: string, qtyBase: number): Promise<void
       .eq('id', lot.id);
     remaining -= take;
   }
+}
+
+// Convierte un renglón de venta del cliente en columnas de `sale_item`.
+// El cliente envía `name` y `sale_unit` solo para mostrar el ticket; la tabla
+// no tiene esas columnas, así que se descartan aquí.
+function saleItemRow(line: Record<string, unknown>, saleId: string) {
+  return {
+    sale_id: saleId,
+    product_id: line.product_id,
+    qty: line.qty,
+    unit_price_cents: line.unit_price_cents,
+    line_total_cents: line.line_total_cents,
+    discount_cents: line.discount_cents ?? 0,
+    weight_grams: line.weight_grams ?? null,
+  };
 }
 
 // Estructura mínima del cuerpo de cada llamada.
@@ -248,7 +276,7 @@ Deno.serve(async (request) => {
 
         const { data: items, error: itemsError } = await db
           .from('sale_item')
-          .insert(lines.map((l) => ({ ...l, sale_id: saleId })))
+          .insert(lines.map((l) => saleItemRow(l, saleId)))
           .select('*');
         if (itemsError) throw itemsError;
 
@@ -299,7 +327,7 @@ Deno.serve(async (request) => {
         if (error) throw error;
         const { data: items, error: itemsError } = await db
           .from('sale_item')
-          .insert(lines.map((l) => ({ ...l, sale_id: created.id })))
+          .insert(lines.map((l) => saleItemRow(l, created.id)))
           .select('*');
         if (itemsError) throw itemsError;
         return json({ sale: created, items });
@@ -710,6 +738,345 @@ Deno.serve(async (request) => {
           .single();
         if (error) throw error;
         return json(data);
+      }
+
+      // ------------------------------------------------------
+      // v2 · Agenda de surtidores y visitas (F-A02, F-A07, F-A08)
+      // ------------------------------------------------------
+      case 'listSchedules': {
+        const { data, error } = await db
+          .from('supplier_schedule')
+          .select('*')
+          .eq('store_id', body.storeId)
+          .order('weekday');
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'saveSchedule': {
+        const input = body.input as { id?: string };
+        const { data, error } = await db
+          .from('supplier_schedule')
+          .upsert(input, { onConflict: 'id' })
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'deleteSchedule': {
+        const { error } = await db.from('supplier_schedule').delete().eq('id', body.id);
+        if (error) throw error;
+        return json(true);
+      }
+
+      case 'listVisits': {
+        const { data, error } = await db
+          .from('supplier_visit')
+          .select('*')
+          .eq('store_id', body.storeId)
+          .gte('visit_date', body.from)
+          .lte('visit_date', body.to)
+          .order('visit_date');
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'markVisit': {
+        const input = body.input as { supplier_id: string; visit_date: string };
+        const { data: existing } = await db
+          .from('supplier_visit')
+          .select('*')
+          .eq('supplier_id', input.supplier_id)
+          .eq('visit_date', input.visit_date)
+          .maybeSingle();
+        if (existing) {
+          const { data, error } = await db
+            .from('supplier_visit')
+            .update(input)
+            .eq('id', existing.id)
+            .select('*')
+            .single();
+          if (error) throw error;
+          return json(data);
+        }
+        const { data, error } = await db.from('supplier_visit').insert(input).select('*').single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      // ------------------------------------------------------
+      // v2 · Órdenes de compra (F-A06)
+      // ------------------------------------------------------
+      case 'listPurchaseOrders': {
+        const { data, error } = await db
+          .from('purchase_order')
+          .select('*, items:purchase_order_item(*)')
+          .eq('store_id', body.storeId)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return json(
+          (data ?? []).map((o: { items?: unknown }) => ({ order: o, items: o.items ?? [] })),
+        );
+      }
+
+      case 'createPurchaseOrder': {
+        const input = body.input as {
+          items: Array<Record<string, unknown>>;
+          [key: string]: unknown;
+        };
+        const { items, ...orderData } = input;
+        const { data: order, error } = await db
+          .from('purchase_order')
+          .insert({ ...orderData, status: 'draft' })
+          .select('*')
+          .single();
+        if (error) throw error;
+        const { data: created, error: itemsError } = await db
+          .from('purchase_order_item')
+          .insert(items.map((i) => ({ ...i, purchase_order_id: order.id })))
+          .select('*');
+        if (itemsError) throw itemsError;
+        return json({ order, items: created });
+      }
+
+      case 'setPurchaseOrderStatus': {
+        const { data, error } = await db
+          .from('purchase_order')
+          .update({ status: body.status, updated_at: new Date().toISOString() })
+          .eq('id', body.id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      // ------------------------------------------------------
+      // v2 · Cambios con proveedor sin costo (F-A04)
+      // ------------------------------------------------------
+      case 'createSupplierExchange': {
+        const input = body.input as {
+          store_id: string;
+          supplier_id: string | null;
+          user_id: string;
+          notes: string | null;
+          items: Array<{
+            product_id: string;
+            lot_id: string | null;
+            qty_returned: number;
+            qty_received: number;
+            new_expires_on: string | null;
+            reason: string;
+          }>;
+        };
+        const { items, ...exchangeData } = input;
+        const { data: exchange, error } = await db
+          .from('supplier_exchange')
+          .insert(exchangeData)
+          .select('*')
+          .single();
+        if (error) throw error;
+        for (const item of items) {
+          const { data: product } = await db
+            .from('product')
+            .select('stock_qty, track_stock')
+            .eq('id', item.product_id)
+            .single();
+          if (item.qty_returned > 0 && item.lot_id) {
+            const { data: lot } = await db
+              .from('product_lot')
+              .select('qty')
+              .eq('id', item.lot_id)
+              .single();
+            if (lot) {
+              await db
+                .from('product_lot')
+                .update({ qty: Math.max(0, lot.qty - item.qty_returned) })
+                .eq('id', item.lot_id);
+            }
+          }
+          if (product?.track_stock) {
+            const next = product.stock_qty - item.qty_returned + item.qty_received;
+            await db
+              .from('product')
+              .update({ stock_qty: Math.max(0, next) })
+              .eq('id', item.product_id);
+          }
+          if (item.qty_received > 0) {
+            await db.from('product_lot').insert({
+              store_id: input.store_id,
+              product_id: item.product_id,
+              qty: item.qty_received,
+              expires_on: item.new_expires_on,
+              supplier_id: input.supplier_id,
+            });
+          }
+          await db.from('supplier_exchange_item').insert({ ...item, exchange_id: exchange.id });
+          if (item.qty_returned > 0) {
+            await db.from('stock_movement').insert({
+              store_id: input.store_id,
+              product_id: item.product_id,
+              type: 'supplier_exchange_out',
+              qty: -item.qty_returned,
+              reason: 'Cambio con proveedor (sale)',
+              user_id: input.user_id,
+              lot_id: item.lot_id,
+            });
+          }
+          if (item.qty_received > 0) {
+            await db.from('stock_movement').insert({
+              store_id: input.store_id,
+              product_id: item.product_id,
+              type: 'supplier_exchange_in',
+              qty: item.qty_received,
+              reason: 'Cambio con proveedor (entra)',
+              user_id: input.user_id,
+            });
+          }
+        }
+        return json(exchange);
+      }
+
+      // ------------------------------------------------------
+      // v2 · Consumo interno con nota obligatoria (F-C01)
+      // ------------------------------------------------------
+      case 'recordInternalUse': {
+        const input = body.input as {
+          store_id: string;
+          product_id: string;
+          qty: number;
+          reason: string;
+          user_id: string;
+        };
+        if (!String(input.reason ?? '').trim()) {
+          return fail('La nota es obligatoria para el consumo interno.');
+        }
+        const { data: product } = await db
+          .from('product')
+          .select('stock_qty, track_stock')
+          .eq('id', input.product_id)
+          .single();
+        if (product?.track_stock) {
+          await db
+            .from('product')
+            .update({ stock_qty: Math.max(0, product.stock_qty - input.qty) })
+            .eq('id', input.product_id);
+          await consumeLotsFefo(input.product_id, input.qty);
+        }
+        const { data, error } = await db
+          .from('stock_movement')
+          .insert({
+            store_id: input.store_id,
+            product_id: input.product_id,
+            type: 'internal_use',
+            qty: -input.qty,
+            reason: input.reason,
+            user_id: input.user_id,
+          })
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      // ------------------------------------------------------
+      // v2 · Fiado (F-B01 a F-B06)
+      // ------------------------------------------------------
+      case 'listCustomers': {
+        const { data, error } = await db
+          .from('customer')
+          .select('*')
+          .eq('store_id', body.storeId)
+          .eq('active', true)
+          .order('name');
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'createCustomer': {
+        const { data, error } = await db.from('customer').insert(body.input).select('*').single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'updateCustomer': {
+        const { data, error } = await db
+          .from('customer')
+          .update({
+            ...(body.patch as Record<string, unknown>),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', body.id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'listCustomerPayments': {
+        const { data, error } = await db
+          .from('customer_payment')
+          .select('*')
+          .eq('customer_id', body.customerId)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'createCustomerPayment': {
+        const input = body.input as { amount_cents: number; customer_id: string };
+        if (!input || Number(input.amount_cents) <= 0) {
+          return fail('El abono debe ser mayor a cero.');
+        }
+        const { data, error } = await db.from('customer_payment').insert(input).select('*').single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'getCustomerStatement': {
+        const customerId = body.customerId as string;
+        const { data: customer, error } = await db
+          .from('customer')
+          .select('*')
+          .eq('id', customerId)
+          .single();
+        if (error) throw error;
+        const { data: sales } = await db
+          .from('sale')
+          .select('*')
+          .eq('customer_id', customerId)
+          .eq('status', 'paid')
+          .order('created_at', { ascending: true });
+        const { data: payments } = await db
+          .from('customer_payment')
+          .select('*')
+          .eq('customer_id', customerId)
+          .order('created_at', { ascending: true });
+        let remainingPaid = (payments ?? []).reduce(
+          (acc: number, p: { amount_cents: number }) => acc + p.amount_cents,
+          0,
+        );
+        const now = Date.now();
+        let balance = 0;
+        let overdue = 0;
+        const salesWithBalance = (sales ?? []).map(
+          (sale: { total_cents: number; created_at: string }) => {
+            const applied = Math.min(remainingPaid, sale.total_cents);
+            remainingPaid -= applied;
+            const saleBalance = sale.total_cents - applied;
+            balance += saleBalance;
+            const ageDays = (now - new Date(sale.created_at).getTime()) / 86400000;
+            if (ageDays > 30 && saleBalance > 0) overdue += saleBalance;
+            return { sale, paid_cents: applied, balance_cents: saleBalance };
+          },
+        );
+        return json({
+          customer,
+          sales: salesWithBalance,
+          payments: payments ?? [],
+          balance_cents: balance,
+          overdue_cents: overdue,
+        });
       }
 
       default:

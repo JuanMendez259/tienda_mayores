@@ -29,6 +29,8 @@ const product: Product = {
   track_stock: true,
   stock_qty: 10,
   low_stock_threshold: 2,
+  supplier_id: null,
+  brand: null,
   active: true,
   created_by: null,
   created_at: '2026-01-01T00:00:00Z',
