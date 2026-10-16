@@ -30,8 +30,10 @@ import type {
   SupplierSchedule,
   SupplierUpdate,
   SupplierExchange,
+  SupplierExchangeItem,
   SupplierType,
   SupplierVisit,
+  SupplierVisitSteps,
   SupplierVisitStatus,
 } from '../types/database';
 
@@ -204,6 +206,8 @@ export interface SupplierVisitInput {
   visit_date: string;
   status: SupplierVisitStatus;
   notes: string | null;
+  /** Pasos marcados de la visita (F-A02). */
+  steps?: SupplierVisitSteps;
 }
 
 // ------------------------------------------------------------
@@ -249,6 +253,12 @@ export interface CreateSupplierExchangeInput {
   user_id: string;
   notes: string | null;
   items: SupplierExchangeLineInput[];
+}
+
+/** Cambio con su detalle, para el historial por proveedor (F-A08). */
+export interface SupplierExchangeWithItems {
+  exchange: SupplierExchange;
+  items: SupplierExchangeItem[];
 }
 
 // ------------------------------------------------------------
@@ -373,8 +383,9 @@ export interface Repository {
   createPurchaseOrder(input: CreatePurchaseOrderInput): Promise<PurchaseOrderWithItems>;
   setPurchaseOrderStatus(id: string, status: PurchaseOrderStatus): Promise<PurchaseOrder>;
 
-  // v2 · Cambios con proveedor sin costo (F-A04)
+  // v2 · Cambios con proveedor sin costo (F-A04) e historial (F-A08)
   createSupplierExchange(input: CreateSupplierExchangeInput): Promise<SupplierExchange>;
+  listSupplierExchanges(storeId: string): Promise<SupplierExchangeWithItems[]>;
 
   // v2 · Consumo interno con nota obligatoria (F-C01)
   recordInternalUse(input: InternalUseInput): Promise<StockMovement>;

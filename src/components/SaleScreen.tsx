@@ -31,6 +31,7 @@ import {
 import { changeDue, formatMXN } from '../lib/money';
 import { formatMeasure } from '../lib/weight';
 import { uid } from '../lib/uid';
+import { computeCutoffAlerts } from '../lib/cutoff';
 import { beep } from '../lib/sound';
 import { enqueueSale } from '../lib/offlineQueue';
 import { logError } from '../lib/errorLog';
@@ -112,23 +113,10 @@ export function SaleScreen({
   const lowStock = products.filter((p) => p.track_stock && p.stock_qty <= p.low_stock_threshold);
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers]);
   // Aviso de hora límite de pedido de hoy, en los próximos 3 horas (F-A07).
-  const cutoffAlerts = useMemo(() => {
-    const now = new Date();
-    const weekday = now.getDay();
-    const nowMins = now.getHours() * 60 + now.getMinutes();
-    return schedules
-      .filter((schedule) => schedule.weekday === weekday)
-      .map((schedule) => {
-        const [hours, minutes] = schedule.order_cutoff_time.split(':').map(Number);
-        return { schedule, mins: hours * 60 + (minutes || 0) };
-      })
-      .filter((item) => item.mins >= nowMins && item.mins - nowMins <= 180)
-      .map((item) => ({
-        id: item.schedule.id,
-        name: supplierById.get(item.schedule.supplier_id)?.name ?? 'Proveedor',
-        time: item.schedule.order_cutoff_time,
-      }));
-  }, [schedules, supplierById]);
+  const cutoffAlerts = useMemo(
+    () => computeCutoffAlerts(schedules, (id) => supplierById.get(id)?.name),
+    [schedules, supplierById],
+  );
 
   useEffect(() => {
     let active = true;

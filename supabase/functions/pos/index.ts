@@ -995,6 +995,18 @@ Deno.serve(async (request) => {
         return json(exchange);
       }
 
+      case 'listSupplierExchanges': {
+        const { data, error } = await db
+          .from('supplier_exchange')
+          .select('*, items:supplier_exchange_item(*)')
+          .eq('store_id', body.storeId)
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        return json(
+          (data ?? []).map((e: { items?: unknown }) => ({ exchange: e, items: e.items ?? [] })),
+        );
+      }
+
       // ------------------------------------------------------
       // v2 · Consumo interno con nota obligatoria (F-C01)
       // ------------------------------------------------------

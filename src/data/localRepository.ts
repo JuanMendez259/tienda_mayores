@@ -54,6 +54,7 @@ import type {
   SaleWithItems,
   StockAdjustmentInput,
   StockMovementFilter,
+  SupplierExchangeWithItems,
   SupplierScheduleInput,
   SupplierVisitInput,
 } from './repository';
@@ -780,11 +781,15 @@ function createLocalRepository(): Repository {
         (v) => v.supplier_id === input.supplier_id && v.visit_date === input.visit_date,
       );
       if (existing) {
-        const updated: SupplierVisit = { ...existing, ...input };
+        const updated: SupplierVisit = {
+          ...existing,
+          ...input,
+          steps: input.steps ?? existing.steps,
+        };
         visits.set(updated.id, updated);
         return clone(updated);
       }
-      const visit: SupplierVisit = { id: uid(), created_at: nowIso(), ...input };
+      const visit: SupplierVisit = { id: uid(), created_at: nowIso(), steps: {}, ...input };
       visits.set(visit.id, visit);
       return clone(visit);
     },
@@ -921,6 +926,15 @@ function createLocalRepository(): Repository {
       }
       exchangeItems.set(exchange.id, created);
       return clone(exchange);
+    },
+    async listSupplierExchanges(storeId: string): Promise<SupplierExchangeWithItems[]> {
+      return [...exchanges.values()]
+        .filter((exchange) => exchange.store_id === storeId)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((exchange) => ({
+          exchange: clone(exchange),
+          items: clone(exchangeItems.get(exchange.id) ?? []),
+        }));
     },
 
     // ----------------------------------------------------------

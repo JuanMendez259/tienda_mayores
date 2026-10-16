@@ -3,6 +3,7 @@ import type { CashSession } from '../types/database';
 import { repository } from '../data';
 import type { CashSummary } from '../data';
 import { formatMXN, parseAmountToCents } from '../lib/money';
+import { computeCutoffAlerts, type CutoffAlert } from '../lib/cutoff';
 import { ConfirmDialog } from './ConfirmDialog';
 import { NumericKeypad } from './NumericKeypad';
 
@@ -24,6 +25,7 @@ export function CashPanel({ session, onClose, onClosed, onProfiles }: CashPanelP
   const [moveNote, setMoveNote] = useState('');
   const [result, setResult] = useState<CashSession | null>(null);
   const [askClose, setAskClose] = useState(false);
+  const [cutoff, setCutoff] = useState<CutoffAlert[]>([]);
 
   const reload = () => {
     void repository.getCashSummary(session.id).then(setSummary);
@@ -38,6 +40,22 @@ export function CashPanel({ session, onClose, onClosed, onProfiles }: CashPanelP
       active = false;
     };
   }, [session.id]);
+
+  // Aviso de hora límite de pedido, también al hacer el corte (F-A07).
+  useEffect(() => {
+    let active = true;
+    void Promise.all([
+      repository.listSchedules(session.store_id),
+      repository.listSuppliers(),
+    ]).then(([scheduleList, supplierList]) => {
+      if (!active) return;
+      const names = new Map(supplierList.map((s) => [s.id, s.name]));
+      setCutoff(computeCutoffAlerts(scheduleList, (id) => names.get(id)));
+    });
+    return () => {
+      active = false;
+    };
+  }, [session.store_id]);
 
   async function saveMovement() {
     const cents = parseAmountToCents(moveAmount);
@@ -62,6 +80,18 @@ export function CashPanel({ session, onClose, onClosed, onProfiles }: CashPanelP
         {view === 'summary' && (
           <>
             <h2 className="title mb-4 text-3xl">Caja</h2>
+            {cutoff.length > 0 && (
+              <div className="mb-4 rounded-xl bg-amber-100 p-3 text-lg font-semibold text-amber-900">
+                ⏰ Hora límite de pedido hoy:
+                <ul className="mt-1 space-y-0.5">
+                  {cutoff.map((item) => (
+                    <li key={item.id}>
+                      • {item.name} — pedir antes de {item.time}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             {summary && (
               <dl className="mb-6 space-y-2 text-lg">
                 <Row label="Fondo inicial" value={formatMXN(summary.opening_cents)} />

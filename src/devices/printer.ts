@@ -181,3 +181,11 @@ export async function printLabels(
   // Las etiquetas necesitan al menos 80 mm de ancho para caber de a dos.
   openPrintWindow(receiptHtml(Math.max(widthMm, 80), 'Etiquetas', body));
 }
+
+/** Imprime texto plano (por ejemplo, un estado de cuenta) en el ancho configurado (F-B04). */
+export function printPlainText(title: string, text: string, widthMm: number): void {
+  const body = `<h1>${escapeHtml(title)}</h1><pre style="white-space:pre-wrap;font-family:inherit;font-size:0.95em;margin:0">${escapeHtml(
+    text,
+  )}</pre>`;
+  openPrintWindow(receiptHtml(widthMm, title, body));
+}

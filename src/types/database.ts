@@ -251,6 +251,13 @@ export interface SupplierSchedule {
   created_at: string;
 }
 
+/** Pasos marcados durante la visita a un proveedor (F-A02). */
+export interface SupplierVisitSteps {
+  inventory?: boolean;
+  expirations?: boolean;
+  order?: boolean;
+}
+
 export interface SupplierVisit {
   id: string;
   store_id: string;
@@ -258,6 +265,8 @@ export interface SupplierVisit {
   visit_date: string;
   status: SupplierVisitStatus;
   notes: string | null;
+  /** Pasos marcados de la visita (F-A02). */
+  steps: SupplierVisitSteps;
   created_at: string;
 }
 

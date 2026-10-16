@@ -39,6 +39,7 @@ export function PurchaseOrdersAdmin({ store, user, products }: PurchaseOrdersAdm
   const [pickerId, setPickerId] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [receivingId, setReceivingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,6 +73,31 @@ export function PurchaseOrdersAdmin({ store, user, products }: PurchaseOrdersAdm
     setLines((prev) => prev.map((line, i) => (i === index ? { ...line, ...patch } : line)));
   }
 
+  /** Carga los productos con stock bajo (del proveedor elegido) como renglones (F-A06). */
+  function suggestLowStock() {
+    const pool = products.filter(
+      (product) =>
+        product.active &&
+        product.track_stock &&
+        product.stock_qty <= product.low_stock_threshold &&
+        (!supplierId || product.supplier_id === supplierId) &&
+        !lines.some((line) => line.product_id === product.id),
+    );
+    if (pool.length === 0) {
+      setError('No hay productos con stock bajo para este proveedor.');
+      return;
+    }
+    setError(null);
+    setLines((prev) => [
+      ...prev,
+      ...pool.map((product) => ({
+        product_id: product.id,
+        qty: Math.max(1, product.low_stock_threshold * 2 - product.stock_qty),
+        unit_cost_cents: product.cost_cents,
+      })),
+    ]);
+  }
+
   async function saveOrder() {
     if (lines.length === 0) {
       setError('Agrega al menos un producto.');
@@ -99,6 +125,38 @@ export function PurchaseOrdersAdmin({ store, user, products }: PurchaseOrdersAdm
     setOrders((prev) =>
       prev.map((entry) => (entry.order.id === updated.id ? { ...entry, order: updated } : entry)),
     );
+  }
+
+  /**
+   * Recibir un pedido registra la entrada de mercancía (compra) y luego cambia
+   * el estado a "recibida" (F-A06).
+   */
+  async function receive(order: PurchaseOrderWithItems) {
+    if (order.order.status === 'received' || receivingId) return;
+    setReceivingId(order.order.id);
+    setError(null);
+    try {
+      await repository.createPurchase({
+        store_id: store.id,
+        supplier_id: order.order.supplier_id,
+        user_id: user.id,
+        invoice_ref: `Orden ${order.order.id.slice(0, 8)}`,
+        invoice_file_url: null,
+        items: order.items.map((item) => ({
+          product_id: item.product_id,
+          qty: item.qty,
+          unit_cost_cents: item.unit_cost_cents,
+          expires_on: null,
+        })),
+      });
+      const updated = await repository.setPurchaseOrderStatus(order.order.id, 'received');
+      setOrders((prev) =>
+        prev.map((entry) => (entry.order.id === updated.id ? { ...entry, order: updated } : entry)),
+      );
+      setMessage('Pedido recibido. Se registró la entrada de mercancía.');
+    } finally {
+      setReceivingId(null);
+    }
   }
 
   function orderText(order: PurchaseOrderWithItems): string {
@@ -162,6 +220,14 @@ export function PurchaseOrdersAdmin({ store, user, products }: PurchaseOrdersAdm
               ))}
             </select>
           </div>
+
+          <button
+            type="button"
+            onClick={suggestLowStock}
+            className="btn btn-warning w-full py-3 text-lg"
+          >
+            📉 Sugerir por stock bajo
+          </button>
 
           <div>
             <label className={label} htmlFor="po-product">
@@ -327,10 +393,11 @@ export function PurchaseOrdersAdmin({ store, user, products }: PurchaseOrdersAdm
                   {order.order.status !== 'received' ? (
                     <button
                       type="button"
-                      onClick={() => void changeStatus(order, 'received')}
+                      onClick={() => void receive(order)}
+                      disabled={receivingId === order.order.id}
                       className="btn btn-primary py-3 text-lg text-white"
                     >
-                      ✅ Marcar recibida
+                      {receivingId === order.order.id ? 'Registrando…' : '✅ Marcar recibida'}
                     </button>
                   ) : (
                     <span className="flex items-center justify-center rounded-2xl bg-green-50 p-3 text-base font-semibold text-green-800">

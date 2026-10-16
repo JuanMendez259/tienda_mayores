@@ -1,6 +1,16 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { AppUser, Store, Supplier, SupplierSchedule, SupplierType, SupplierVisit } from '../../types/database';
+import type {
+  AppUser,
+  Store,
+  Supplier,
+  SupplierSchedule,
+  SupplierType,
+  SupplierVisit,
+  SupplierVisitSteps,
+} from '../../types/database';
 import { repository } from '../../data';
+import type { PurchaseOrderWithItems, SupplierExchangeWithItems } from '../../data';
+import { formatMXN } from '../../lib/money';
 
 interface SuppliersAdminProps {
   store: Store;
@@ -18,10 +28,31 @@ const TYPES: { id: SupplierType; label: string }[] = [
 
 const WEEKDAYS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 
+/** Pasos que se marcan durante la visita a un proveedor (F-A02). */
+const VISIT_STEPS: { key: keyof SupplierVisitSteps; label: string }[] = [
+  { key: 'inventory', label: 'Revisar inventario' },
+  { key: 'expirations', label: 'Revisar caducidades' },
+  { key: 'order', label: 'Generar pedido' },
+];
+
+const VISIT_STATUS_LABEL: Record<string, string> = {
+  scheduled: '⏳ Programada',
+  done: '✅ Visitó',
+  skipped: '⛔ No vino',
+};
+
 function todayIso(): string {
   const now = new Date();
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(
     now.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+function daysAgoIso(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() - days);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(
+    date.getDate(),
   ).padStart(2, '0')}`;
 }
 
@@ -40,6 +71,14 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [listTypeFilter, setListTypeFilter] = useState<SupplierType | 'all'>('all');
+
+  // Historial por proveedor (F-A08)
+  const [historyFor, setHistoryFor] = useState<Supplier | null>(null);
+  const [historyVisits, setHistoryVisits] = useState<SupplierVisit[]>([]);
+  const [historyOrders, setHistoryOrders] = useState<PurchaseOrderWithItems[]>([]);
+  const [historyExchanges, setHistoryExchanges] = useState<SupplierExchangeWithItems[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
 
   // Agenda
   const [scheduleSupplierId, setScheduleSupplierId] = useState('');
@@ -64,6 +103,13 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
   }, [load]);
 
   const activeSuppliers = useMemo(() => suppliers.filter((s) => s.active), [suppliers]);
+  const shownSuppliers = useMemo(
+    () =>
+      listTypeFilter === 'all'
+        ? activeSuppliers
+        : activeSuppliers.filter((supplier) => supplier.type === listTypeFilter),
+    [activeSuppliers, listTypeFilter],
+  );
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers]);
 
   const todayWeekday = new Date().getDay();
@@ -144,6 +190,37 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
   const visitStatus = (supplierId: string) =>
     visits.find((v) => v.supplier_id === supplierId)?.status ?? null;
 
+  const visitSteps = (supplierId: string) =>
+    visits.find((v) => v.supplier_id === supplierId)?.steps ?? {};
+
+  async function toggleStep(supplierId: string, key: keyof SupplierVisitSteps) {
+    const visit = visits.find((v) => v.supplier_id === supplierId);
+    const steps: SupplierVisitSteps = { ...(visit?.steps ?? {}), [key]: !(visit?.steps?.[key]) };
+    await repository.markVisit({
+      store_id: store.id,
+      supplier_id: supplierId,
+      visit_date: today,
+      status: visit?.status ?? 'scheduled',
+      notes: visit?.notes ?? null,
+      steps,
+    });
+    await load();
+  }
+
+  async function openHistory(supplier: Supplier) {
+    setHistoryFor(supplier);
+    setHistoryLoading(true);
+    const [visitList, orderList, exchangeList] = await Promise.all([
+      repository.listVisits(store.id, daysAgoIso(60), today),
+      repository.listPurchaseOrders(store.id),
+      repository.listSupplierExchanges(store.id),
+    ]);
+    setHistoryVisits(visitList.filter((v) => v.supplier_id === supplier.id));
+    setHistoryOrders(orderList.filter((o) => o.order.supplier_id === supplier.id));
+    setHistoryExchanges(exchangeList.filter((e) => e.exchange.supplier_id === supplier.id));
+    setHistoryLoading(false);
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid gap-6 lg:grid-cols-2">
@@ -208,17 +285,40 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
         </section>
 
         <section className="card p-4">
-          <h3 className="title mb-4 text-2xl">Proveedores ({activeSuppliers.length})</h3>
+          <h3 className="title mb-3 text-2xl">Proveedores ({shownSuppliers.length})</h3>
           {message && (
             <p className="mb-3 rounded-xl bg-green-100 p-3 text-lg font-semibold text-green-900">
               {message}
             </p>
           )}
-          {activeSuppliers.length === 0 ? (
-            <p className="text-lg text-slate-500">Aún no hay proveedores registrados.</p>
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setListTypeFilter('all')}
+              className={`btn px-3 py-2 text-base ${
+                listTypeFilter === 'all' ? 'btn-primary text-white' : 'btn-neutral'
+              }`}
+            >
+              Todos
+            </button>
+            {TYPES.map((item) => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setListTypeFilter(item.id)}
+                className={`btn px-3 py-2 text-base ${
+                  listTypeFilter === item.id ? 'btn-primary text-white' : 'btn-neutral'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          {shownSuppliers.length === 0 ? (
+            <p className="text-lg text-slate-500">No hay proveedores de ese tipo.</p>
           ) : (
             <ul className="space-y-2">
-              {activeSuppliers.map((supplier) => (
+              {shownSuppliers.map((supplier) => (
                 <li key={supplier.id} className="rounded-xl bg-slate-50 p-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -239,12 +339,19 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
                     </button>
                     <button
                       type="button"
-                      onClick={() => void deactivate(supplier.id)}
-                      className="btn btn-danger py-3 text-lg text-white"
+                      onClick={() => void openHistory(supplier)}
+                      className="btn btn-neutral py-3 text-lg"
                     >
-                      🗑 Quitar
+                      📜 Historial
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => void deactivate(supplier.id)}
+                    className="btn btn-danger mt-2 w-full py-3 text-lg text-white"
+                  >
+                    🗑 Quitar
+                  </button>
                 </li>
               ))}
             </ul>
@@ -388,6 +495,23 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
                       </button>
                     </div>
                   </div>
+                  <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                    {VISIT_STEPS.map((step) => {
+                      const done = Boolean(visitSteps(schedule.supplier_id)[step.key]);
+                      return (
+                        <button
+                          key={step.key}
+                          type="button"
+                          onClick={() => void toggleStep(schedule.supplier_id, step.key)}
+                          className={`btn px-2 py-3 text-base ${
+                            done ? 'btn-primary text-white' : 'btn-neutral'
+                          }`}
+                        >
+                          {done ? '✅' : '⬜'} {step.label}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </li>
               );
             })}
@@ -395,6 +519,110 @@ export function SuppliersAdmin({ store, user }: SuppliersAdminProps) {
         )}
         <p className="mt-3 text-sm text-slate-400">Registrado por {user.name}.</p>
       </section>
+
+      {historyFor && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
+          <div
+            className="card max-h-[92vh] w-full max-w-2xl space-y-4 overflow-y-auto p-6"
+            role="dialog"
+            aria-modal="true"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h3 className="title text-2xl">Historial · {historyFor.name}</h3>
+              <button
+                type="button"
+                onClick={() => setHistoryFor(null)}
+                className="btn btn-neutral px-4 py-3 text-lg"
+              >
+                ← Cerrar
+              </button>
+            </div>
+
+            {historyLoading ? (
+              <p className="text-lg text-slate-500">Cargando…</p>
+            ) : (
+              <>
+                <div>
+                  <h4 className="mb-2 text-xl font-bold">Visitas (últimos 60 días)</h4>
+                  {historyVisits.length === 0 ? (
+                    <p className="text-lg text-slate-500">Sin visitas registradas.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {historyVisits
+                        .slice()
+                        .sort((a, b) => b.visit_date.localeCompare(a.visit_date))
+                        .map((visit) => (
+                          <li key={visit.id} className="rounded-xl bg-slate-50 p-3 text-lg">
+                            {visit.visit_date} · {VISIT_STATUS_LABEL[visit.status] ?? visit.status}
+                          </li>
+                        ))}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="mb-2 text-xl font-bold">Pedidos</h4>
+                  {historyOrders.length === 0 ? (
+                    <p className="text-lg text-slate-500">Sin pedidos registrados.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {historyOrders.map((entry) => {
+                        const total = entry.items.reduce(
+                          (acc, item) => acc + item.qty * item.unit_cost_cents,
+                          0,
+                        );
+                        return (
+                          <li key={entry.order.id} className="rounded-xl bg-slate-50 p-3">
+                            <div className="flex items-center justify-between text-lg">
+                              <span className="font-semibold">
+                                {entry.order.created_at.slice(0, 10)}
+                              </span>
+                              <span>{formatMXN(total)}</span>
+                            </div>
+                            <p className="text-base text-slate-600">
+                              {entry.items.length} producto(s) ·{' '}
+                              {entry.order.status === 'received'
+                                ? '✅ Recibida'
+                                : entry.order.status === 'sent'
+                                  ? '📲 Enviada'
+                                  : entry.order.status === 'cancelled'
+                                    ? '⛔ Cancelada'
+                                    : '📝 Borrador'}
+                            </p>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  )}
+                </div>
+
+                <div>
+                  <h4 className="mb-2 text-xl font-bold">Cambios con proveedor</h4>
+                  {historyExchanges.length === 0 ? (
+                    <p className="text-lg text-slate-500">Sin cambios registrados.</p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {historyExchanges.map((entry) => (
+                        <li key={entry.exchange.id} className="rounded-xl bg-slate-50 p-3">
+                          <div className="flex items-center justify-between text-lg">
+                            <span className="font-semibold">
+                              {entry.exchange.created_at.slice(0, 10)}
+                            </span>
+                            <span>{entry.items.length} producto(s)</span>
+                          </div>
+                          {entry.exchange.notes && (
+                            <p className="text-base text-slate-600">{entry.exchange.notes}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

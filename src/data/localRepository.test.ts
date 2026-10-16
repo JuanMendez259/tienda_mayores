@@ -470,7 +470,65 @@ describe('v2 · fiado, consumo interno, cambios y órdenes', () => {
     const visits = await repo.listVisits(store.id, '2026-05-04', '2026-05-04');
     expect(visits).toHaveLength(1);
     expect(visits[0].status).toBe('done');
+    expect(visits[0].steps).toEqual({});
+
+    // Pasos de la visita (F-A02): se marcan y se conservan.
+    await repo.markVisit({
+      store_id: store.id,
+      supplier_id: supplier.id,
+      visit_date: '2026-05-04',
+      status: 'done',
+      notes: null,
+      steps: { inventory: true, order: true },
+    });
+    const withSteps = await repo.listVisits(store.id, '2026-05-04', '2026-05-04');
+    expect(withSteps).toHaveLength(1);
+    expect(withSteps[0].steps).toEqual({ inventory: true, order: true });
     void maria;
+  });
+
+  it('lista los cambios con proveedor para el historial (F-A08)', async () => {
+    const { store, maria } = await base();
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+    const supplier = await repo.createSupplier({
+      store_id: store.id,
+      name: 'Distribuidora Sur',
+      phone: null,
+      notes: null,
+      type: 'local',
+    });
+
+    await repo.createPurchase({
+      store_id: store.id,
+      supplier_id: supplier.id,
+      user_id: maria.id,
+      invoice_ref: null,
+      invoice_file_url: null,
+      items: [{ product_id: arroz.id, qty: 4, unit_cost_cents: 2000, expires_on: '2030-01-01' }],
+    });
+    const lot = (await repo.listExpiringLots(3650)).find((l) => l.product_id === arroz.id)!;
+
+    await repo.createSupplierExchange({
+      store_id: store.id,
+      supplier_id: supplier.id,
+      user_id: maria.id,
+      notes: 'Producto vencido',
+      items: [
+        {
+          product_id: arroz.id,
+          lot_id: lot.id,
+          qty_returned: 4,
+          qty_received: 4,
+          new_expires_on: '2032-01-01',
+          reason: 'expired',
+        },
+      ],
+    });
+
+    const list = await repo.listSupplierExchanges(store.id);
+    expect(list).toHaveLength(1);
+    expect(list[0].exchange.supplier_id).toBe(supplier.id);
+    expect(list[0].items).toHaveLength(1);
   });
 });
 

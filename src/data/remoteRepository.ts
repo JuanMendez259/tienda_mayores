@@ -48,6 +48,7 @@ import type {
   SaleWithItems,
   StockAdjustmentInput,
   StockMovementFilter,
+  SupplierExchangeWithItems,
   SupplierScheduleInput,
   SupplierVisitInput,
 } from './repository';
@@ -114,6 +115,8 @@ export const remoteRepository: Repository = {
 
   createSupplierExchange: (input: CreateSupplierExchangeInput) =>
     call<SupplierExchange>('createSupplierExchange', { input }),
+  listSupplierExchanges: (storeId: string) =>
+    call<SupplierExchangeWithItems[]>('listSupplierExchanges', { storeId }),
 
   recordInternalUse: (input: InternalUseInput) => call<StockMovement>('recordInternalUse', { input }),
 

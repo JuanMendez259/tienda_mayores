@@ -4,6 +4,7 @@ import { repository } from '../../data';
 import type { CustomerStatement } from '../../data';
 import { formatMXN } from '../../lib/money';
 import { PAYMENT_METHOD_LABELS } from '../../devices/payments';
+import { printPlainText } from '../../devices/printer';
 
 interface CustomersAdminProps {
   store: Store;
@@ -288,6 +289,7 @@ export function CustomersAdmin({ store, user, products, cashSessionId }: Custome
           statements={statements}
           customerId={view.customerId}
           productById={productById}
+          widthMm={store.ticket_width_mm}
           onBack={() => setView({ kind: 'list' })}
         />
       )}
@@ -395,13 +397,16 @@ function StatementView({
   statements,
   customerId,
   productById,
+  widthMm,
   onBack,
 }: {
   statements: Record<string, CustomerStatement>;
   customerId: string;
   productById: Map<string, string>;
+  widthMm: number;
   onBack: () => void;
 }) {
+  const [ticketView, setTicketView] = useState(false);
   const statement = statements[customerId];
   if (!statement) {
     return (
@@ -420,7 +425,25 @@ function StatementView({
     <div className="card space-y-4 p-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h3 className="title text-2xl">{statement.customer.name}</h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setTicketView((prev) => !prev)}
+            className="btn btn-neutral px-4 py-3 text-lg"
+          >
+            {ticketView ? '📄 Ver lista' : '🧾 Ver ticket'}
+          </button>
+          {ticketView && (
+            <button
+              type="button"
+              onClick={() =>
+                printPlainText(`Estado de cuenta · ${statement.customer.name}`, text, widthMm)
+              }
+              className="btn btn-primary px-4 py-3 text-lg text-white"
+            >
+              🖨 Imprimir
+            </button>
+          )}
           <button
             type="button"
             onClick={() => {
@@ -436,6 +459,12 @@ function StatementView({
         </div>
       </div>
 
+      {ticketView ? (
+        <div className="mx-auto w-full max-w-sm rounded-xl border-2 border-dashed border-slate-400 bg-white p-4 font-mono text-base">
+          <pre className="whitespace-pre-wrap">{text}</pre>
+        </div>
+      ) : (
+        <>
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-2xl bg-red-50 p-4">
           <p className="text-base font-semibold text-red-800">Debe</p>
@@ -501,6 +530,8 @@ function StatementView({
           </ul>
         )}
       </div>
+        </>
+      )}
     </div>
   );
 }

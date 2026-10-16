@@ -37,6 +37,10 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
   const [expiryDays, setExpiryDays] = useState(store.expiry_alert_days);
   const [ticketWidth, setTicketWidth] = useState(store.ticket_width_mm);
   const [whatsappCode, setWhatsappCode] = useState(store.whatsapp_country_code);
+  const [creditCashier, setCreditCashier] = useState(store.credit_cashier_allowed);
+  const [internalUseCashier, setInternalUseCashier] = useState(
+    store.internal_use_cashier_allowed,
+  );
   const [capturaOpen, setCapturaOpen] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -55,6 +59,8 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
       expiry_alert_days: expiryDays,
       ticket_width_mm: ticketWidth,
       whatsapp_country_code: whatsappCode.trim() || '+52',
+      credit_cashier_allowed: creditCashier,
+      internal_use_cashier_allowed: internalUseCashier,
     });
     setSaved(true);
     onSaved(updated);
@@ -144,6 +150,29 @@ export function SettingsAdmin({ store, onSaved }: SettingsAdminProps) {
           />
           Los descuentos requieren autorización de encargado
         </label>
+
+        <h4 className="mb-2 text-xl font-bold">¿Quién puede…?</h4>
+        <label className="mb-2 flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-lg">
+          <input
+            type="checkbox"
+            checked={creditCashier}
+            onChange={(e) => setCreditCashier(e.target.checked)}
+            className="h-8 w-8"
+          />
+          El cajero puede cobrar a fiado
+        </label>
+        <label className="mb-4 flex items-center gap-3 rounded-xl bg-slate-50 p-3 text-lg">
+          <input
+            type="checkbox"
+            checked={internalUseCashier}
+            onChange={(e) => setInternalUseCashier(e.target.checked)}
+            className="h-8 w-8"
+          />
+          El cajero puede registrar consumo interno
+        </label>
+        <p className="mb-4 text-base text-slate-500">
+          Dueño y encargado siempre pueden. Estas opciones solo abren el permiso a los cajeros.
+        </p>
 
         {saved && <p className="mb-4 rounded-xl bg-green-100 p-3 text-lg font-semibold text-green-900">Cambios guardados.</p>}
 
