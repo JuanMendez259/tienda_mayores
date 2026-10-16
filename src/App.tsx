@@ -186,6 +186,7 @@ function App() {
           <SaleScreen
             store={store}
             user={user}
+            users={users}
             cashSession={cashSession}
             products={products}
             categories={categories}

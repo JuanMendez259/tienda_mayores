@@ -354,6 +354,72 @@ describe('v2 · fiado, consumo interno, cambios y órdenes', () => {
     ).rejects.toThrow();
   });
 
+  it('bloquea el fiado que supera el límite y lo permite con autorización (F-B06)', async () => {
+    const { store, maria } = await base();
+    const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;
+    const customer = await repo.createCustomer({
+      store_id: store.id,
+      name: 'Don Beto',
+      phone: null,
+      notes: null,
+      credit_limit_cents: 5000,
+    });
+    const line = (qty: number, unit: number) => ({
+      product_id: arroz.id,
+      name: arroz.name,
+      sale_unit: 'piece' as const,
+      qty,
+      unit_price_cents: unit,
+      line_total_cents: qty * unit,
+      discount_cents: 0,
+      weight_grams: null,
+    });
+
+    // Dentro del límite: la venta a fiado pasa.
+    await repo.checkout({
+      store_id: store.id,
+      user_id: maria.id,
+      client_uuid: 'uuid-fb06-1',
+      subtotal_cents: 4000,
+      discount_cents: 0,
+      total_cents: 4000,
+      customer_id: customer.id,
+      lines: [line(2, 2000)],
+      payments: [{ method: 'credit', amount_cents: 4000, reference: null }],
+    });
+    expect((await repo.getCustomerStatement(customer.id)).balance_cents).toBe(4000);
+
+    // Supera el límite: se rechaza sin autorización.
+    await expect(
+      repo.checkout({
+        store_id: store.id,
+        user_id: maria.id,
+        client_uuid: 'uuid-fb06-2',
+        subtotal_cents: 2000,
+        discount_cents: 0,
+        total_cents: 2000,
+        customer_id: customer.id,
+        lines: [line(1, 2000)],
+        payments: [{ method: 'credit', amount_cents: 2000, reference: null }],
+      }),
+    ).rejects.toThrow();
+
+    // Con autorización de dueño/encargado: pasa.
+    await repo.checkout({
+      store_id: store.id,
+      user_id: maria.id,
+      client_uuid: 'uuid-fb06-3',
+      subtotal_cents: 2000,
+      discount_cents: 0,
+      total_cents: 2000,
+      customer_id: customer.id,
+      credit_override: true,
+      lines: [line(1, 2000)],
+      payments: [{ method: 'credit', amount_cents: 2000, reference: null }],
+    });
+    expect((await repo.getCustomerStatement(customer.id)).balance_cents).toBe(6000);
+  });
+
   it('registra consumo interno con nota obligatoria (F-C01)', async () => {
     const { store, maria } = await base();
     const arroz = (await repo.listProducts()).find((p) => p.id === 'prd-arroz')!;

@@ -50,6 +50,7 @@ describe('render de pantallas (smoke)', () => {
       <SaleScreen
         store={seedStore}
         user={seedUsers[0]}
+        users={seedUsers}
         cashSession={session}
         products={seedProducts}
         categories={seedCategories}

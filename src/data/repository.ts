@@ -65,6 +65,8 @@ export interface CheckoutInput {
   payments: PaymentInput[];
   /** Cliente del fiado (F-B02); null en ventas normales. */
   customer_id?: string | null;
+  /** Venta a fiado autorizada por dueño/encargado aunque supere el límite (F-B06). */
+  credit_override?: boolean;
 }
 
 export interface HeldSaleInput {

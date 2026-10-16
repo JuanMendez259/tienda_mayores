@@ -626,6 +626,29 @@ function createLocalRepository(): Repository {
       if (paidCents !== input.total_cents) {
         throw new Error('La suma de los pagos no coincide con el total de la venta.');
       }
+      // F-B06: el límite de fiado bloquea, salvo autorización de dueño/encargado.
+      const creditCents = input.payments
+        .filter((payment) => payment.method === 'credit')
+        .reduce((acc, payment) => acc + payment.amount_cents, 0);
+      if (creditCents > 0 && input.customer_id) {
+        const customer = customers.get(input.customer_id);
+        const limit = customer?.credit_limit_cents ?? null;
+        if (limit !== null && !input.credit_override) {
+          const salesTotal = [...sales.values()]
+            .filter((s) => s.customer_id === input.customer_id && s.status === 'paid')
+            .reduce((acc, s) => acc + s.total_cents, 0);
+          const paidTotal = (customerPayments.get(input.customer_id) ?? []).reduce(
+            (acc, payment) => acc + payment.amount_cents,
+            0,
+          );
+          const balance = Math.max(0, salesTotal - paidTotal);
+          if (balance + creditCents > limit) {
+            throw new Error(
+              'La venta supera el límite de fiado del cliente. Registra un abono, sube el límite o pide autorización a un encargado.',
+            );
+          }
+        }
+      }
       const base: Omit<Sale, 'id' | 'number' | 'created_at'> = {
         store_id: input.store_id,
         user_id: input.user_id,

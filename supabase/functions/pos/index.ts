@@ -324,9 +324,50 @@ Deno.serve(async (request) => {
           return fail('La suma de los pagos no coincide con el total de la venta.');
         }
 
+        // F-B06: el límite de fiado bloquea, salvo autorización de dueño/encargado.
+        const creditCents = payments
+          .filter((payment) => payment.method === 'credit')
+          .reduce((acc, payment) => acc + Number(payment.amount_cents ?? 0), 0);
+        const creditCustomerId = sale.customer_id as string | null | undefined;
+        if (creditCents > 0 && creditCustomerId && !sale.credit_override) {
+          const { data: customer } = await db
+            .from('customer')
+            .select('credit_limit_cents')
+            .eq('id', creditCustomerId)
+            .single();
+          const limit = customer?.credit_limit_cents ?? null;
+          if (limit !== null) {
+            const { data: creditSales } = await db
+              .from('sale')
+              .select('total_cents')
+              .eq('customer_id', creditCustomerId)
+              .eq('status', 'paid');
+            const { data: paidRows } = await db
+              .from('customer_payment')
+              .select('amount_cents')
+              .eq('customer_id', creditCustomerId);
+            const salesTotal = (creditSales ?? []).reduce(
+              (acc: number, s: { total_cents: number }) => acc + s.total_cents,
+              0,
+            );
+            const paidTotal = (paidRows ?? []).reduce(
+              (acc: number, p: { amount_cents: number }) => acc + p.amount_cents,
+              0,
+            );
+            const balance = Math.max(0, salesTotal - paidTotal);
+            if (balance + creditCents > limit) {
+              return fail(
+                'La venta supera el límite de fiado del cliente. Registra un abono, sube el límite o pide autorización a un encargado.',
+              );
+            }
+          }
+        }
+
+        const saleRow = { ...sale };
+        delete saleRow.credit_override;
         const { data: created, error: saleError } = await db
           .from('sale')
-          .insert({ ...sale, status: 'paid', paid_at: new Date().toISOString() })
+          .insert({ ...saleRow, status: 'paid', paid_at: new Date().toISOString() })
           .select('*')
           .single();
         if (saleError) throw saleError;

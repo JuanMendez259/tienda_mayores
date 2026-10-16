@@ -47,10 +47,13 @@ import { ProductFormModal } from './ProductFormModal';
 import { DiscountModal } from './DiscountModal';
 import { HelpModal } from './HelpModal';
 import { InternalUseModal } from './InternalUseModal';
+import { ManagerAuthModal } from './ManagerAuthModal';
 
 interface SaleScreenProps {
   store: Store;
   user: AppUser;
+  /** Todos los usuarios, para la autorización de encargado (F-B06). */
+  users: AppUser[];
   cashSession: CashSession;
   products: Product[];
   categories: Category[];
@@ -65,6 +68,7 @@ interface SaleScreenProps {
 export function SaleScreen({
   store,
   user,
+  users,
   cashSession,
   products,
   categories,
@@ -97,6 +101,17 @@ export function SaleScreen({
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [bestSellers, setBestSellers] = useState<string[]>([]);
   const [internalUseOpen, setInternalUseOpen] = useState(false);
+  // Autorización de fiado sobre el límite (F-B06).
+  const [creditOverride, setCreditOverride] = useState<{
+    name: string;
+    projected: number;
+    limit: number;
+    customerId: string;
+    payments: PaymentInput[];
+    received: number;
+  } | null>(null);
+  const [askSelfAuthorize, setAskSelfAuthorize] = useState(false);
+  const [authOpen, setAuthOpen] = useState(false);
 
   // Los descuentos por promoción se calculan al vuelo (F-407).
   const pricedCart = useMemo(() => applyAutoPromotions(cart, promotions), [cart, promotions]);
@@ -172,7 +187,7 @@ export function SaleScreen({
 
   // Escáner USB activo solo cuando no hay otro modal abierto (F-102).
   const scanningEnabled =
-    !paymentOpen && !weightFor && !productFormOpen && !discountOpen && !heldOpen && !helpOpen && !askCancel && ticket === null;
+    !paymentOpen && !weightFor && !productFormOpen && !discountOpen && !heldOpen && !helpOpen && !askCancel && !askSelfAuthorize && !authOpen && ticket === null;
   useBarcodeScanner(handleScan, scanningEnabled);
 
   function mutate(next: CartItem[]) {
@@ -352,7 +367,61 @@ export function SaleScreen({
     setMessage('Venta cancelada.');
   }
 
+  /** Valida el límite de fiado (F-B06) y, si hace falta, pide autorización. */
   async function checkout(payments: PaymentInput[], received: number, customerId?: string | null) {
+    if (busy) return;
+    const creditCents = payments
+      .filter((payment) => payment.method === 'credit')
+      .reduce((acc, payment) => acc + payment.amount_cents, 0);
+    if (creditCents > 0 && customerId) {
+      const customer = customers.find((entry) => entry.id === customerId) ?? null;
+      const limit = customer?.credit_limit_cents ?? null;
+      if (limit !== null) {
+        let balance = 0;
+        try {
+          balance = (await repository.getCustomerStatement(customerId)).balance_cents;
+        } catch (cause) {
+          logError(cause, 'credit-limit');
+        }
+        const projected = balance + creditCents;
+        if (projected > limit) {
+          setPaymentOpen(false);
+          setCreditOverride({
+            name: customer?.name ?? 'El cliente',
+            projected,
+            limit,
+            customerId,
+            payments,
+            received,
+          });
+          if (canManage) {
+            setAskSelfAuthorize(true);
+          } else {
+            setAuthOpen(true);
+          }
+          return;
+        }
+      }
+    }
+    await finalizeSale(payments, received, customerId);
+  }
+
+  function authorizeCredit() {
+    const pending = creditOverride;
+    setAskSelfAuthorize(false);
+    setAuthOpen(false);
+    setCreditOverride(null);
+    if (pending) {
+      void finalizeSale(pending.payments, pending.received, pending.customerId, true);
+    }
+  }
+
+  async function finalizeSale(
+    payments: PaymentInput[],
+    received: number,
+    customerId?: string | null,
+    override = false,
+  ) {
     if (busy) return;
     setBusy(true);
     const paymentsLabel = paymentsLabelFor(payments);
@@ -366,6 +435,7 @@ export function SaleScreen({
       lines: buildLines(),
       payments,
       customer_id: customerId ?? null,
+      credit_override: override || undefined,
     };
 
     // Sin conexión: guardar la venta y enviarla al reconectar (F-704 / sección 9).
@@ -698,6 +768,34 @@ export function SaleScreen({
         }}
         onCancel={() => setAskCancel(false)}
       />
+
+      <ConfirmDialog
+        open={askSelfAuthorize}
+        title="Supera el límite de fiado"
+        message={
+          creditOverride
+            ? `${creditOverride.name} llegaría a ${formatMXN(creditOverride.projected)} y su límite es ${formatMXN(creditOverride.limit)}. ¿Autorizas esta venta a fiado?`
+            : ''
+        }
+        confirmLabel="Sí, autorizar"
+        onConfirm={authorizeCredit}
+        onCancel={() => {
+          setAskSelfAuthorize(false);
+          setCreditOverride(null);
+        }}
+      />
+
+      {authOpen && creditOverride && (
+        <ManagerAuthModal
+          message={`${creditOverride.name} llegaría a ${formatMXN(creditOverride.projected)} y su límite es ${formatMXN(creditOverride.limit)}.`}
+          users={users}
+          onAuthorized={authorizeCredit}
+          onCancel={() => {
+            setAuthOpen(false);
+            setCreditOverride(null);
+          }}
+        />
+      )}
     </div>
   );
 }
