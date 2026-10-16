@@ -473,3 +473,34 @@ describe('v2 · fiado, consumo interno, cambios y órdenes', () => {
     void maria;
   });
 });
+
+describe('F-401 · categorías del catálogo', () => {
+  it('crea, lista, edita y da de baja categorías', async () => {
+    const store = await repo.getStore();
+    const before = await repo.listCategories();
+
+    const created = await repo.createCategory({
+      store_id: store.id,
+      name: 'Botanas',
+      color: '#ffedd5',
+    });
+    expect(created.name).toBe('Botanas');
+    expect(created.active).toBe(true);
+
+    const listed = await repo.listCategories();
+    expect(listed).toHaveLength(before.length + 1);
+    // Se ordenan por sort_order.
+    expect(listed[listed.length - 1].id).toBe(created.id);
+
+    const renamed = await repo.updateCategory(created.id, { name: 'Botanas y dulces' });
+    expect(renamed.name).toBe('Botanas y dulces');
+
+    await repo.updateCategory(created.id, { active: false });
+    const after = await repo.listCategories();
+    expect(after.some((c) => c.id === created.id)).toBe(false);
+  });
+
+  it('rechaza editar una categoría inexistente', async () => {
+    await expect(repo.updateCategory('no-existe', { name: 'X' })).rejects.toThrow();
+  });
+});

@@ -83,6 +83,7 @@ function App() {
 
   const refreshProducts = useCallback(() => {
     void repository.listProducts().then(setProducts);
+    void repository.listCategories().then(setCategories);
   }, []);
 
   // Al recuperar la conexión, enviar las ventas pendientes y refrescar el catálogo (F-704).

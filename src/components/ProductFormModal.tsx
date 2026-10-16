@@ -30,6 +30,9 @@ export function ProductFormModal({
 }: ProductFormModalProps) {
   const [name, setName] = useState(product?.name ?? '');
   const [categoryId, setCategoryId] = useState(product?.category_id ?? categories[0]?.id ?? '');
+  const [categoryList, setCategoryList] = useState<Category[]>(categories);
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
   const [saleUnit, setSaleUnit] = useState<SaleUnit>(product?.sale_unit ?? 'piece');
   const [price, setPrice] = useState(product ? (product.price_cents / 100).toFixed(2) : '');
   const [cost, setCost] = useState(product && product.cost_cents ? (product.cost_cents / 100).toFixed(2) : '');
@@ -56,6 +59,20 @@ export function ProductFormModal({
 
   const stockLabel =
     saleUnit === 'weight' ? 'Gramos en bodega' : saleUnit === 'volume' ? 'Mililitros en bodega' : 'Piezas en bodega';
+
+  async function createCategoryInline() {
+    const clean = newCategoryName.trim();
+    if (!clean) return;
+    try {
+      const created = await repository.createCategory({ store_id: storeId, name: clean });
+      setCategoryList((prev) => [...prev, created]);
+      setCategoryId(created.id);
+      setNewCategoryName('');
+      setNewCategoryOpen(false);
+    } catch {
+      setError('No se pudo crear la categoría.');
+    }
+  }
 
   async function pickImage(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -138,11 +155,43 @@ export function ProductFormModal({
 
           <div>
             <label className={label} htmlFor="p-cat">Categoría</label>
-            <select id="p-cat" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={field}>
-              {categories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="flex gap-2">
+              <select
+                id="p-cat"
+                value={categoryId}
+                onChange={(e) => setCategoryId(e.target.value)}
+                className={`${field} flex-1`}
+              >
+                {categoryList.map((c) => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={() => setNewCategoryOpen((prev) => !prev)}
+                className="btn btn-neutral shrink-0 px-4 py-3 text-lg"
+              >
+                + Nueva
+              </button>
+            </div>
+            {newCategoryOpen && (
+              <div className="mt-2 flex gap-2">
+                <input
+                  value={newCategoryName}
+                  onChange={(e) => setNewCategoryName(e.target.value)}
+                  placeholder="Nombre de la categoría"
+                  aria-label="Nombre de la nueva categoría"
+                  className={`${field} flex-1`}
+                />
+                <button
+                  type="button"
+                  onClick={() => void createCategoryInline()}
+                  className="btn btn-primary shrink-0 px-4 py-3 text-lg text-white"
+                >
+                  Crear
+                </button>
+              </div>
+            )}
           </div>
 
           <div>

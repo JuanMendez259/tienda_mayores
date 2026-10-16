@@ -4,6 +4,7 @@ import type {
   CashMovementType,
   CashSession,
   Category,
+  CategoryUpdate,
   Customer,
   CustomerPayment,
   CustomerUpdate,
@@ -105,6 +106,16 @@ export interface NewSupplierInput {
   notes: string | null;
   /** local | regional | national (F-A01); por defecto local. */
   type?: SupplierType;
+}
+
+/** Alta de categoría del catálogo (F-401). */
+export interface NewCategoryInput {
+  store_id: string;
+  name: string;
+  /** Imagen o emoji de la categoría (opcional). */
+  image_url?: string | null;
+  color?: string | null;
+  sort_order?: number;
 }
 
 export interface PurchaseLineInput {
@@ -319,6 +330,8 @@ export interface Repository {
   setPin(userId: string, oldPin: string, newPin: string): Promise<boolean>;
 
   listCategories(): Promise<Category[]>;
+  createCategory(input: NewCategoryInput): Promise<Category>;
+  updateCategory(id: string, patch: CategoryUpdate): Promise<Category>;
   listProducts(): Promise<Product[]>;
   createProduct(input: NewProductInput): Promise<Product>;
   updateProduct(id: string, patch: ProductUpdate): Promise<Product>;

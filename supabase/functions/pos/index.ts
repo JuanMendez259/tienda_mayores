@@ -210,6 +210,27 @@ Deno.serve(async (request) => {
         return json(data);
       }
 
+      case 'createCategory': {
+        const input = body.input as { name?: string };
+        if (!String(input?.name ?? '').trim()) {
+          return fail('Escribe el nombre de la categoría.');
+        }
+        const { data, error } = await db.from('category').insert(body.input).select('*').single();
+        if (error) throw error;
+        return json(data);
+      }
+
+      case 'updateCategory': {
+        const { data, error } = await db
+          .from('category')
+          .update(body.patch)
+          .eq('id', body.id)
+          .select('*')
+          .single();
+        if (error) throw error;
+        return json(data);
+      }
+
       case 'listProducts': {
         const { data, error } = await db.from('product').select('*').eq('active', true).order('name');
         if (error) throw error;

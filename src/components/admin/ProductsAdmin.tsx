@@ -5,8 +5,10 @@ import { formatMXN } from '../../lib/money';
 import { formatStock, unitLabel } from '../../lib/weight';
 import { parseProductsCsv, productsCsvTemplate } from '../../lib/csv';
 import { printLabels } from '../../devices/printer';
+import { emojiImage } from '../../data/seed';
 import { ProductFormModal } from '../ProductFormModal';
 import { ConfirmDialog } from '../ConfirmDialog';
+import { CategoriesAdmin } from './CategoriesAdmin';
 
 interface ProductsAdminProps {
   store: Store;
@@ -25,6 +27,7 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
   const [formOpen, setFormOpen] = useState(false);
   const [toDelete, setToDelete] = useState<Product | null>(null);
   const [report, setReport] = useState<string | null>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const categoryName = useMemo(() => {
@@ -59,10 +62,29 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
     const { rows, errors } = parseProductsCsv(text);
     const categoryByName = new Map(categories.map((c) => [c.name.toLowerCase(), c.id]));
     let created = 0;
+    let newCategories = 0;
     for (const row of rows) {
+      let categoryId: string | null = null;
+      if (row.category) {
+        const key = row.category.toLowerCase();
+        let found = categoryByName.get(key);
+        if (!found) {
+          // La categoría del CSV no existe: se crea automáticamente (F-401).
+          const createdCategory = await repository.createCategory({
+            store_id: store.id,
+            name: row.category,
+            image_url: emojiImage('🏷️', '#e2e8f0'),
+            color: '#e2e8f0',
+          });
+          found = createdCategory.id;
+          categoryByName.set(key, found);
+          newCategories += 1;
+        }
+        categoryId = found;
+      }
       await repository.createProduct({
         store_id: store.id,
-        category_id: row.category ? categoryByName.get(row.category.toLowerCase()) ?? null : null,
+        category_id: categoryId,
         name: row.name,
         image_url: row.imageUrl,
         sale_unit: row.saleUnit,
@@ -81,6 +103,7 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
     onRefresh();
     setReport(
       `Importación terminada: ${created} producto(s) creado(s)` +
+        (newCategories ? `, ${newCategories} categoría(s) nueva(s)` : '') +
         (errors.length ? `, ${errors.length} con error.` : '.'),
     );
   }
@@ -127,6 +150,13 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
         </button>
         <button type="button" onClick={downloadTemplate} className="btn btn-neutral px-5 py-4 text-lg">
           Plantilla CSV
+        </button>
+        <button
+          type="button"
+          onClick={() => setCategoriesOpen(true)}
+          className="btn btn-neutral px-5 py-4 text-lg"
+        >
+          🏷️ Categorías
         </button>
         <label className="btn btn-neutral cursor-pointer px-5 py-4 text-lg">
           Importar CSV
@@ -206,6 +236,14 @@ export function ProductsAdmin({ store, user, products, categories, onRefresh }: 
         onConfirm={deactivate}
         onCancel={() => setToDelete(null)}
       />
+
+      {categoriesOpen && (
+        <CategoriesAdmin
+          store={store}
+          onClose={() => setCategoriesOpen(false)}
+          onChanged={onRefresh}
+        />
+      )}
     </div>
   );
 }

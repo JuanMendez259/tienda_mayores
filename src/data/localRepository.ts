@@ -5,6 +5,7 @@ import type {
   CashMovementType,
   CashSession,
   Category,
+  CategoryUpdate,
   Customer,
   CustomerPayment,
   CustomerUpdate,
@@ -42,6 +43,7 @@ import type {
   HeldSaleInput,
   InternalUseInput,
   NewCustomerInput,
+  NewCategoryInput,
   NewProductInput,
   NewSupplierInput,
   OpenCashInput,
@@ -275,6 +277,28 @@ function createLocalRepository(): Repository {
 
     async listCategories() {
       return clone(categories.filter((c) => c.active).sort((a, b) => a.sort_order - b.sort_order));
+    },
+    async createCategory(input: NewCategoryInput) {
+      const category: Category = {
+        id: uid(),
+        store_id: input.store_id,
+        name: input.name.trim(),
+        image_url: input.image_url ?? null,
+        color: input.color ?? null,
+        sort_order: input.sort_order ?? categories.length + 1,
+        active: true,
+        created_at: nowIso(),
+        updated_at: nowIso(),
+      };
+      categories.push(category);
+      return clone(category);
+    },
+    async updateCategory(id: string, patch: CategoryUpdate) {
+      const index = categories.findIndex((c) => c.id === id);
+      if (index < 0) throw new Error('Categoría no encontrada');
+      const updated: Category = { ...categories[index], ...patch, updated_at: nowIso() };
+      categories[index] = updated;
+      return clone(updated);
     },
     async listProducts() {
       return clone([...products.values()].filter((p) => p.active));

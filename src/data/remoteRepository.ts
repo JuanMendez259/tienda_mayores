@@ -4,6 +4,7 @@ import type {
   CashMovementType,
   CashSession,
   Category,
+  CategoryUpdate,
   Customer,
   CustomerPayment,
   CustomerUpdate,
@@ -34,6 +35,7 @@ import type {
   HeldSaleInput,
   InternalUseInput,
   NewCustomerInput,
+  NewCategoryInput,
   NewProductInput,
   NewSupplierInput,
   OpenCashInput,
@@ -71,6 +73,9 @@ export const remoteRepository: Repository = {
   setPin: (userId, oldPin, newPin) => call<boolean>('setPin', { userId, oldPin, newPin }),
 
   listCategories: () => call<Category[]>('listCategories'),
+  createCategory: (input: NewCategoryInput) => call<Category>('createCategory', { input }),
+  updateCategory: (id: string, patch: CategoryUpdate) =>
+    call<Category>('updateCategory', { id, patch }),
   listProducts: () => call<Product[]>('listProducts'),
   createProduct: (input: NewProductInput) => call<Product>('createProduct', { input }),
   updateProduct: (id: string, patch: ProductUpdate) =>
