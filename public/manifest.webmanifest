@@ -1,0 +1,18 @@
+{
+  "name": "Punto de venta — Abarrotes La Esquina",
+  "short_name": "Punto de venta",
+  "description": "Caja y administración para tienda de abarrotes.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#f1f5f9",
+  "theme_color": "#f1f5f9",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

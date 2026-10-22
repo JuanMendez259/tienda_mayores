@@ -64,7 +64,7 @@ export function InternalUseModal({ store, user, products, onClose, onDone }: Int
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card max-h-[92vh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
+      <div className="card max-h-[92dvh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
         <h2 className="title mb-2 text-3xl">🧾 Consumo interno</h2>
         <p className="mb-4 text-lg text-slate-600">
           Para productos que se usan en la tienda (no se venden). Requiere una nota.

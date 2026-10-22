@@ -31,7 +31,7 @@ export function OpenCashScreen({ store, user, onOpened }: OpenCashScreenProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-100 p-6">
       <div className="card w-full max-w-lg p-6">
         <h1 className="title text-3xl">Abrir caja</h1>
         <p className="mb-6 text-lg text-slate-600">

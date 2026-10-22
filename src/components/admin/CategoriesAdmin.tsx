@@ -115,7 +115,7 @@ export function CategoriesAdmin({ store, onClose, onChanged }: CategoriesAdminPr
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card max-h-[92vh] w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-modal="true">
+      <div className="card max-h-[92dvh] w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-modal="true">
         <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="title text-3xl">🏷️ Categorías</h2>
           <button type="button" onClick={onClose} className="btn btn-neutral px-5 py-3 text-lg">

@@ -77,7 +77,7 @@ export function CapturaScreen() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 p-4">
+    <div className="min-h-dvh bg-slate-100 p-4">
       <h1 className="title mb-1 text-3xl">📷 Alta rápida</h1>
       <p className="mb-4 text-lg text-slate-600">{store?.name ?? 'Cargando…'}</p>
 

@@ -3,6 +3,14 @@
 /* Base >= 18px (Sección 7: UX tercera edad) */
 html {
   font-size: 18px;
+  -webkit-text-size-adjust: 100%;
+}
+
+/* En tablet la caja es a pantalla completa: evita el "jalar para recargar"
+   y el rebote de la página mientras se cobra. */
+html,
+body {
+  overscroll-behavior: none;
 }
 
 body {
@@ -11,6 +19,15 @@ body {
   color: #0f172a;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Toques inmediatos y sin zoom accidental por doble toque. */
+button,
+input,
+select,
+textarea {
+  touch-action: manipulation;
 }
 
 @layer components {

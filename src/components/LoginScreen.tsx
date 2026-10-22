@@ -125,7 +125,7 @@ export function LoginScreen({ store, users, onLogin }: LoginScreenProps) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-4">
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-slate-100 p-4">
       <header className="mb-2 flex flex-col items-center">
         {store.logo_url && (
           <img src={store.logo_url} alt="" className="mb-1 h-14 w-14 rounded-2xl" />

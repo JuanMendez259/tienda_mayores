@@ -47,7 +47,7 @@ export function ManagerAuthModal({ message, users, onAuthorized, onCancel }: Man
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4">
-      <div className="card max-h-[92vh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
+      <div className="card max-h-[92dvh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
         <h2 className="title mb-2 text-2xl">🔐 Autorización de encargado</h2>
         <p className="mb-4 rounded-2xl bg-amber-100 p-3 text-lg font-semibold text-amber-900">
           {message}

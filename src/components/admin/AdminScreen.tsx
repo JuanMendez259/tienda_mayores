@@ -239,7 +239,7 @@ export function AdminScreen({
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
         {!active ? (
-          <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="mx-auto grid max-w-4xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
             {menu.map((item) => {
               const alert = alerts[item.id];
               const toneClass =

@@ -73,7 +73,7 @@ export function SupplierExchangeModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card max-h-[92vh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
+      <div className="card max-h-[92dvh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
         <h2 className="title mb-2 text-3xl">🔁 Cambio con proveedor</h2>
         <p className="mb-4 text-lg text-slate-600">
           {product.name} · lote {lot.expires_on ?? 'sin caducidad'} ·{' '}

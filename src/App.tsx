@@ -7,6 +7,7 @@ import { SaleScreen } from './components/SaleScreen';
 import { CashPanel } from './components/CashPanel';
 import { AdminScreen } from './components/admin/AdminScreen';
 import { CapturaScreen } from './components/CapturaScreen';
+import { OrientationHint } from './components/OrientationHint';
 import { flushPendingSales } from './lib/sync';
 import { installErrorHandlers, logError } from './lib/errorLog';
 
@@ -151,7 +152,7 @@ function App() {
 
   if (stage === 'loading') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100 text-2xl font-bold">
+      <div className="flex min-h-dvh items-center justify-center bg-slate-100 text-2xl font-bold">
         Cargando…
       </div>
     );
@@ -159,7 +160,7 @@ function App() {
 
   if (stage === 'error' || !store) {
     return (
-      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-slate-100 p-6 text-center">
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-100 p-6 text-center">
         <span className="text-5xl">⚠️</span>
         <h1 className="title text-3xl">No se pudo iniciar</h1>
         <p className="text-xl text-slate-600">{error ?? 'Revisa la configuración.'}</p>
@@ -231,6 +232,8 @@ function App() {
           modo demostración
         </div>
       )}
+
+      {!isCapturaMode && <OrientationHint />}
     </>
   );
 }

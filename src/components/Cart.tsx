@@ -24,27 +24,34 @@ export function Cart({ items, onInc, onDec, onRemove, onEditMeasure }: CartProps
   return (
     <ul className="flex h-full flex-col gap-2 overflow-y-auto p-2">
       {items.map((item) => (
-        <li key={item.key} className="card flex items-center gap-3 p-3">
-          {item.image_url && (
-            <img src={item.image_url} alt="" className="h-14 w-14 rounded-xl" />
-          )}
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xl font-bold">{item.name}</p>
-            <p className="text-base text-slate-600">
-              {item.saleUnit === 'piece'
-                ? `${item.qty} × ${formatMXN(item.unitPriceCents)}`
-                : `${formatMeasure(item.measure ?? 0, item.saleUnit)} × ${formatMXN(item.unitPriceCents)}`}
-            </p>
-            {item.discountCents > 0 && (
-              <p className="text-base font-semibold text-green-700">
-                Descuento −{formatMXN(item.discountCents)}
-              </p>
+        <li key={item.key} className="card p-3">
+          {/* Renglón 1: producto y total (cabe en el ancho de una tablet). */}
+          <div className="flex items-start gap-3">
+            {item.image_url && (
+              <img src={item.image_url} alt="" className="h-14 w-14 shrink-0 rounded-xl" />
             )}
+            <div className="min-w-0 flex-1">
+              <p className="line-clamp-2 text-xl font-bold leading-tight">{item.name}</p>
+              <p className="text-base text-slate-600">
+                {item.saleUnit === 'piece'
+                  ? `${item.qty} × ${formatMXN(item.unitPriceCents)}`
+                  : `${formatMeasure(item.measure ?? 0, item.saleUnit)} × ${formatMXN(item.unitPriceCents)}`}
+              </p>
+              {item.discountCents > 0 && (
+                <p className="text-base font-semibold text-green-700">
+                  Descuento −{formatMXN(item.discountCents)}
+                </p>
+              )}
+            </div>
+            <span className="shrink-0 text-right text-2xl font-extrabold">
+              {formatMXN(item.lineTotalCents)}
+            </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Renglón 2: controles grandes, separados para no apretar el nombre. */}
+          <div className="mt-2 flex items-center justify-between gap-2">
             {item.saleUnit === 'piece' ? (
-              <>
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => onDec(item.key)}
@@ -62,19 +69,16 @@ export function Cart({ items, onInc, onDec, onRemove, onEditMeasure }: CartProps
                 >
                   +
                 </button>
-              </>
+              </div>
             ) : (
               <button
                 type="button"
                 onClick={() => onEditMeasure(item)}
                 className="btn btn-neutral px-4 py-3 text-lg"
               >
-                Cambiar
+                Cambiar medida
               </button>
             )}
-            <span className="w-24 text-right text-2xl font-extrabold">
-              {formatMXN(item.lineTotalCents)}
-            </span>
             <button
               type="button"
               onClick={() => onRemove(item.key)}

@@ -492,7 +492,7 @@ export function SaleScreen({
             </button>
           )}
           <button type="button" onClick={openHeld} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
-            ⏳ En espera
+            ⏳ Pendientes
           </button>
           <button type="button" onClick={onOpenCash} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
             💰 Caja
@@ -523,9 +523,10 @@ export function SaleScreen({
         </div>
       )}
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-12">
+      {/* En tablet horizontal se ven catálogo y carrito a la vez. */}
+      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-12">
         <main
-          className={`min-h-0 lg:col-span-8 lg:block ${view === 'catalog' ? 'block' : 'hidden'}`}
+          className={`min-h-0 md:col-span-7 md:block xl:col-span-8 ${view === 'catalog' ? 'block' : 'hidden'}`}
         >
           <ProductGrid
             products={products}
@@ -540,7 +541,7 @@ export function SaleScreen({
         </main>
 
         <aside
-          className={`min-h-0 flex-col border-t border-slate-200 bg-white lg:col-span-4 lg:flex lg:border-l lg:border-t-0 ${
+          className={`min-h-0 flex-col border-t border-slate-200 bg-white md:col-span-5 md:flex md:border-l md:border-t-0 xl:col-span-4 ${
             view === 'cart' ? 'flex' : 'hidden'
           }`}
         >
@@ -577,23 +578,36 @@ export function SaleScreen({
               </div>
             )}
 
-            {store.modules.discounts && (
+            {/* Acciones en dos columnas: caben en el ancho de la tablet. */}
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              {store.modules.discounts && (
+                <button
+                  type="button"
+                  onClick={() => setDiscountOpen(true)}
+                  disabled={cart.length === 0}
+                  className={`btn py-3 text-lg ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'}`}
+                >
+                  % Descuento
+                </button>
+              )}
               <button
                 type="button"
-                onClick={() => setDiscountOpen(true)}
+                onClick={holdSale}
                 disabled={cart.length === 0}
-                className={`btn mb-2 w-full py-4 text-xl ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'}`}
+                className={`btn py-3 text-lg ${
+                  cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'
+                } ${store.modules.discounts ? '' : 'col-span-2'}`}
               >
-                % Aplicar descuento
+                ⏳ En espera
               </button>
-            )}
+            </div>
 
             <div className="mb-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={undo}
                 disabled={history.length === 0}
-                className={`btn py-4 text-lg ${history.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-warning'}`}
+                className={`btn py-3 text-lg ${history.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-warning'}`}
               >
                 ↶ Deshacer
               </button>
@@ -601,26 +615,17 @@ export function SaleScreen({
                 type="button"
                 onClick={() => setAskCancel(true)}
                 disabled={cart.length === 0}
-                className={`btn py-4 text-lg ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-danger text-white'}`}
+                className={`btn py-3 text-lg ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-danger text-white'}`}
               >
-                Cancelar venta
+                Cancelar
               </button>
             </div>
 
             <button
               type="button"
-              onClick={holdSale}
-              disabled={cart.length === 0}
-              className={`btn mb-2 w-full py-4 text-xl ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'}`}
-            >
-              Poner en espera
-            </button>
-
-            <button
-              type="button"
               onClick={() => setPaymentOpen(true)}
               disabled={cart.length === 0}
-              className={`btn w-full py-6 text-3xl text-white ${
+              className={`btn w-full py-5 text-2xl text-white lg:text-3xl ${
                 cart.length === 0 ? 'cursor-not-allowed bg-slate-300' : 'bg-green-600 hover:bg-green-700'
               }`}
             >
@@ -630,8 +635,8 @@ export function SaleScreen({
         </aside>
       </div>
 
-      {/* Barra inferior para alternar vistas en móvil/tablet (en lg se ven ambas). */}
-      <nav className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white p-2 lg:hidden">
+      {/* Barra inferior solo en teléfonos (en tablet horizontal se ven ambas). */}
+      <nav className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white p-2 md:hidden">
         <button
           type="button"
           onClick={() => setView('catalog')}
@@ -721,7 +726,7 @@ export function SaleScreen({
 
       {heldOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="card max-h-[92vh] w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-modal="true">
+          <div className="card max-h-[92dvh] w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-modal="true">
             <h2 className="title mb-4 text-3xl">Ventas en espera</h2>
             {held.length === 0 ? (
               <p className="mb-4 text-lg text-slate-600">No hay ventas en espera.</p>
