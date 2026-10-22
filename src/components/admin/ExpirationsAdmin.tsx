@@ -2,19 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AppUser, Product, ProductLot, Store } from '../../types/database';
 import { repository } from '../../data';
 import { formatStock } from '../../lib/weight';
+import { daysUntil } from '../../lib/expirations';
 import { SupplierExchangeModal } from '../SupplierExchangeModal';
 
 interface ExpirationsAdminProps {
   store: Store;
   user: AppUser;
   products: Product[];
-}
-
-function daysUntil(dateIso: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(`${dateIso}T00:00:00`);
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }
 
 /**
