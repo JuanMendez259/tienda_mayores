@@ -12,6 +12,41 @@ interface ProductGridProps {
   onNewProduct: () => void;
 }
 
+type Visual = { emoji: string; tint: string };
+
+/** Emoji y fondo según el nombre del producto o su categoría. */
+function visualFor(text: string): Visual {
+  const value = text.toLowerCase();
+  if (/(refresco|bebida|jugo|agua|soda|cola)/.test(value))
+    return { emoji: '🥤', tint: 'bg-blue-50' };
+  if (/huevo/.test(value))
+    return { emoji: '🥚', tint: 'bg-amber-50' };
+  if (/(leche|lácteo|lacteo|yogur|queso|crema)/.test(value))
+    return { emoji: '🥛', tint: 'bg-sky-50' };
+  if (/(pan|bolillo|tortilla|pastel|galleta)/.test(value))
+    return { emoji: '🍞', tint: 'bg-orange-50' };
+  if (/(limpieza|jabón|jabon|detergente|cloro)/.test(value))
+    return { emoji: '🧼', tint: 'bg-cyan-50' };
+  if (/(fruta|verdura|jitomate|cebolla|papa|tomate|aguacate)/.test(value))
+    return { emoji: '🍅', tint: 'bg-emerald-50' };
+  if (/(frijol|atún|atun|enlatad|sopa|aceite|arroz|pasta|despensa)/.test(value))
+    return { emoji: '🥫', tint: 'bg-rose-50' };
+  return { emoji: '📦', tint: 'bg-slate-100' };
+}
+
+/** Etiqueta de existencia: es lo que más le sirve al cajero en el día a día. */
+function stockBadge(product: Product): { label: string; tone: string } | null {
+  if (!product.track_stock) return product.brand ? { label: product.brand, tone: 'bg-slate-700' } : null;
+  const label =
+    product.sale_unit === 'piece'
+      ? `${product.stock_qty} pzas`
+      : formatMeasure(product.stock_qty, product.sale_unit);
+  if (product.stock_qty <= product.low_stock_threshold) return { label, tone: 'bg-red-600' };
+  if (product.sale_unit === 'piece') return { label, tone: 'bg-slate-800' };
+  if (product.sale_unit === 'volume') return { label, tone: 'bg-blue-600' };
+  return { label, tone: 'bg-amber-600' };
+}
+
 /** Cuadrícula táctil de productos con búsqueda, categorías, marcas y más vendidos (F-101, F-103, F-A09). */
 export function ProductGrid({
   products,
@@ -24,6 +59,11 @@ export function ProductGrid({
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [brand, setBrand] = useState<string | null>(null);
   const [bestOnly, setBestOnly] = useState(false);
+
+  const categoryName = useMemo(
+    () => new Map(categories.map((category) => [category.id, category.name])),
+    [categories],
+  );
 
   const brands = useMemo(() => {
     const set = new Set<string>();
@@ -54,121 +94,148 @@ export function ProductGrid({
     return list;
   }, [products, query, categoryId, brand, bestOnly, bestRank]);
 
+  const chip = 'btn shrink-0 border-2 px-4 py-2 text-base';
+  const chipOff = `${chip} border-slate-200 bg-white text-slate-800 hover:bg-slate-100`;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex w-full items-center gap-2 p-4 pb-2">
-        <input
-          autoFocus
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Buscar producto…"
-          className="min-h-[56px] min-w-0 flex-1 rounded-2xl border-2 border-slate-300 bg-white px-4 text-xl"
-          aria-label="Buscar producto"
-        />
-        <button
-          type="button"
-          onClick={onNewProduct}
-          className="btn btn-warning shrink-0 whitespace-nowrap px-4 py-3 text-lg"
-        >
-          + Producto
-        </button>
-      </div>
-
-      <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap px-4 pb-2 pt-1">
-        <button
-          type="button"
-          onClick={() => {
-            setCategoryId(null);
-            setBestOnly(false);
-          }}
-          className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === null && !bestOnly ? 'btn-primary text-white' : 'btn-neutral'}`}
-        >
-          Todo
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setBestOnly(true);
-            setCategoryId(null);
-          }}
-          className={`btn shrink-0 px-5 py-3 text-lg ${bestOnly ? 'btn-warning' : 'btn-neutral'}`}
-        >
-          🔥 Más vendidos
-        </button>
-        {categories.map((category) => (
+      <div className="space-y-3 border-b border-slate-200 bg-white p-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="relative min-w-0 flex-1">
+            <span className="pointer-events-none absolute inset-y-0 left-4 flex items-center text-2xl text-slate-400">
+              🔍
+            </span>
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Buscar producto por nombre..."
+              className="min-h-[56px] w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3 pl-12 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white"
+              aria-label="Buscar producto"
+            />
+          </div>
           <button
-            key={category.id}
+            type="button"
+            onClick={onNewProduct}
+            className="btn shrink-0 whitespace-nowrap border-2 border-amber-600 bg-amber-400 px-4 py-3 text-base font-extrabold text-slate-900 hover:bg-amber-500"
+          >
+            ➕ <span className="hidden sm:inline">Nuevo / Manual</span>
+            <span className="sm:hidden">Nuevo</span>
+          </button>
+        </div>
+
+        <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap">
+          <button
             type="button"
             onClick={() => {
-              setCategoryId(category.id);
+              setCategoryId(null);
               setBestOnly(false);
             }}
-            className={`btn shrink-0 px-5 py-3 text-lg ${categoryId === category.id ? 'btn-primary text-white' : 'btn-neutral'}`}
+            className={`${chip} ${categoryId === null && !bestOnly ? 'border-emerald-700 bg-emerald-600 text-white' : chipOff}`}
           >
-            {category.name}
+            ✨ Todo
           </button>
-        ))}
-      </div>
-
-      {brands.length > 0 && (
-        <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap px-4 pb-2">
           <button
             type="button"
-            onClick={() => setBrand(null)}
-            className={`btn shrink-0 px-4 py-2 text-base ${brand === null ? 'btn-primary text-white' : 'btn-neutral'}`}
+            onClick={() => {
+              setBestOnly(true);
+              setCategoryId(null);
+            }}
+            className={`${chip} ${bestOnly ? 'border-amber-600 bg-amber-500 text-slate-900' : chipOff}`}
           >
-            Todas las marcas
+            🔥 Más vendidos
           </button>
-          {brands.map((item) => (
+          {categories.map((category) => (
             <button
-              key={item}
+              key={category.id}
               type="button"
-              onClick={() => setBrand(item)}
-              className={`btn shrink-0 px-4 py-2 text-base ${brand === item ? 'btn-primary text-white' : 'btn-neutral'}`}
+              onClick={() => {
+                setCategoryId(category.id);
+                setBestOnly(false);
+              }}
+              className={`${chip} ${categoryId === category.id ? 'border-emerald-700 bg-emerald-600 text-white' : chipOff}`}
             >
-              {item}
+              {visualFor(category.name).emoji} {category.name}
             </button>
           ))}
         </div>
-      )}
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4 pt-1">
-        {filtered.length === 0 ? (
-          <p className="p-6 text-center text-xl text-slate-500">
-            No se encontraron productos.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {filtered.map((product) => (
+        {brands.length > 0 && (
+          <div className="scrollbar-none flex gap-2 overflow-x-auto whitespace-nowrap">
+            <button
+              type="button"
+              onClick={() => setBrand(null)}
+              className={`${chip} ${brand === null ? 'border-slate-700 bg-slate-800 text-white' : chipOff}`}
+            >
+              Todas las marcas
+            </button>
+            {brands.map((item) => (
               <button
-                key={product.id}
+                key={item}
                 type="button"
-                onClick={() => onPick(product)}
-                className="card flex flex-col items-center p-3 text-center hover:border-green-500"
+                onClick={() => setBrand(item)}
+                className={`${chip} ${brand === item ? 'border-slate-700 bg-slate-800 text-white' : chipOff}`}
               >
-                {product.image_url ? (
-                  <img src={product.image_url} alt="" className="mb-2 h-24 w-24 rounded-xl" />
-                ) : (
-                  <div className="mb-2 flex h-24 w-24 items-center justify-center rounded-xl bg-slate-100 text-4xl">
-                    📦
-                  </div>
-                )}
-                <span className="line-clamp-2 text-xl font-semibold leading-tight">
-                  {product.name}
-                </span>
-                <span className="price mt-1">{formatMXN(product.price_cents)}</span>
-                <span className="text-base text-slate-500">
-                  {product.sale_unit === 'piece'
-                    ? 'Por pieza'
-                    : `Por ${product.sale_unit === 'volume' ? 'litro' : 'kilo'}`}
-                </span>
-                {product.sale_unit !== 'piece' && (
-                  <span className="text-sm text-slate-400">
-                    quedan {formatMeasure(product.stock_qty, product.sale_unit)}
-                  </span>
-                )}
+                {item}
               </button>
             ))}
+          </div>
+        )}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50 p-4">
+        {filtered.length === 0 ? (
+          <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
+            <span className="text-6xl">🔎</span>
+            <p className="text-xl font-bold">No se encontraron productos.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3.5 md:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+            {filtered.map((product) => {
+              const visual = visualFor(`${product.name} ${categoryName.get(product.category_id ?? '') ?? ''}`);
+              const badge = stockBadge(product);
+              return (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => onPick(product)}
+                  className="relative flex flex-col justify-between rounded-3xl border-2 border-slate-200 bg-white p-3.5 text-left shadow-sm transition hover:border-emerald-400 active:scale-[0.99]"
+                >
+                  {badge && (
+                    <span
+                      className={`absolute right-3 top-3 z-10 rounded-full px-2.5 py-1 text-base font-extrabold text-white ${badge.tone}`}
+                    >
+                      {badge.label}
+                    </span>
+                  )}
+                  <div className={`mb-3 flex h-28 items-center justify-center rounded-2xl ${visual.tint}`}>
+                    {product.image_url ? (
+                      <img src={product.image_url} alt="" className="h-24 w-24 rounded-xl object-contain" />
+                    ) : (
+                      <span className="select-none text-6xl drop-shadow-sm">{visual.emoji}</span>
+                    )}
+                  </div>
+                  <div>
+                    <h3 className="line-clamp-2 text-xl font-extrabold leading-tight text-slate-900">
+                      {product.name}
+                    </h3>
+                    <p className="text-base font-bold text-slate-500">
+                      {product.sale_unit === 'piece'
+                        ? 'Por pieza'
+                        : `Por ${product.sale_unit === 'volume' ? 'litro' : 'kilo'}`}
+                    </p>
+                  </div>
+                  <div className="mt-2 flex items-center justify-between border-t border-slate-100 pt-2">
+                    <span className="text-2xl font-black text-slate-900">{formatMXN(product.price_cents)}</span>
+                    <span
+                      aria-hidden="true"
+                      className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-black text-white shadow-md"
+                    >
+                      +
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

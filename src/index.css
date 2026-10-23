@@ -17,7 +17,7 @@ body {
   margin: 0;
   background: #f1f5f9;
   color: #0f172a;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Nunito", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -webkit-tap-highlight-color: transparent;
 }
@@ -32,7 +32,7 @@ textarea {
 
 @layer components {
   .btn {
-    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 text-xl font-bold transition-colors select-none;
+    @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 text-xl font-extrabold transition-colors select-none;
     min-width: 56px;
     min-height: 56px;
   }

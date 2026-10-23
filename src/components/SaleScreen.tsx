@@ -463,48 +463,87 @@ export function SaleScreen({
 
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-4">
+      <header className="z-20 flex flex-none flex-wrap items-center justify-between gap-3 border-b-2 border-slate-200 bg-white px-4 py-2.5 shadow-sm">
         <div className="flex min-w-0 items-center gap-3">
-          {store.logo_url && <img src={store.logo_url} alt="" className="h-12 w-12 rounded-xl" />}
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-emerald-500 bg-emerald-100 text-3xl">
+            {store.logo_url ? (
+              <img src={store.logo_url} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span aria-hidden="true">🏪</span>
+            )}
+          </div>
           <div className="min-w-0">
-            <p className="truncate text-xl font-extrabold leading-tight">{store.name}</p>
-            <p className="truncate text-base text-slate-500">
-              {user.name} · Caja abierta {formatMXN(cashSession.opening_cents)}
+            <h1 className="flex min-w-0 items-center gap-2 text-2xl font-black leading-none tracking-tight text-slate-900">
+              <span className="truncate">{store.name}</span>
+              <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-1 text-base font-extrabold uppercase tracking-wide text-emerald-800">
+                Modo fácil
+              </span>
+            </h1>
+            <p className="mt-1 flex flex-wrap items-center gap-2 text-base font-bold text-slate-600">
+              <span>
+                👤 Atiende: <strong className="text-slate-900">{user.name}</strong>
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-emerald-800">
+                💰 En caja:{" "}
+                <strong className="text-base text-emerald-700">
+                  {formatMXN(cashSession.opening_cents)}
+                </strong>
+              </span>
             </p>
           </div>
         </div>
-        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
+        <nav
+          aria-label="Acciones del turno"
+          className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end"
+        >
           {canUseInternalUse && (
             <button
               type="button"
               onClick={() => setInternalUseOpen(true)}
-              className="btn btn-neutral px-3 py-3 text-lg sm:px-4"
+              className="btn border-2 border-slate-300 bg-slate-100 px-3 py-2 text-lg text-slate-700 hover:bg-slate-200 sm:px-4"
             >
               🧾 Interno
             </button>
           )}
-          <button type="button" onClick={() => setHelpOpen(true)} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
-            ❓ Ayuda
+          <button
+            type="button"
+            onClick={() => setHelpOpen(true)}
+            className="btn border-2 border-amber-300 bg-amber-100 px-3 py-2 text-lg text-amber-900 hover:bg-amber-200 sm:px-4"
+          >
+            ❓ Ayuda / SOS
           </button>
           {canManage && (
-            <button type="button" onClick={onOpenAdmin} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
+            <button
+              type="button"
+              onClick={onOpenAdmin}
+              className="btn border-2 border-slate-300 bg-slate-100 px-3 py-2 text-lg text-slate-700 hover:bg-slate-200 sm:px-4"
+            >
               📋 Menú
             </button>
           )}
-          <button type="button" onClick={openHeld} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
+          <button
+            type="button"
+            onClick={openHeld}
+            className="btn border-2 border-slate-300 bg-slate-100 px-3 py-2 text-lg text-slate-700 hover:bg-slate-200 sm:px-4"
+          >
             ⏳ Pendientes
           </button>
-          <button type="button" onClick={onOpenCash} className="btn btn-neutral px-3 py-3 text-lg sm:px-4">
+          <button
+            type="button"
+            onClick={onOpenCash}
+            className="btn border-2 border-slate-300 bg-slate-100 px-3 py-2 text-lg text-slate-700 hover:bg-slate-200 sm:px-4"
+          >
             💰 Caja
           </button>
           <button
             type="button"
             onClick={onLogout}
-            className={`btn btn-exit px-3 py-3 text-lg sm:px-4 ${canManage ? 'col-span-2' : ''}`}
+            className={`btn border-2 border-red-200 bg-red-50 px-3 py-2 text-lg text-red-700 hover:bg-red-100 sm:px-4 ${canManage ? 'col-span-2' : ''}`}
           >
             🚪 Salir
           </button>
-        </div>
+        </nav>
       </header>
 
       {lowStock.length > 0 && (
@@ -523,10 +562,13 @@ export function SaleScreen({
         </div>
       )}
 
-      {/* En tablet horizontal se ven catálogo y carrito a la vez. */}
-      <div className="grid min-h-0 flex-1 grid-cols-1 md:grid-cols-12">
-        <main
-          className={`min-h-0 md:col-span-7 md:block xl:col-span-8 ${view === 'catalog' ? 'block' : 'hidden'}`}
+      {/* En tablet horizontal se ven catálogo (63%) y ticket (37%) a la vez. */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <section
+          aria-label="Catálogo de productos"
+          className={`min-h-0 w-full flex-col border-r-2 border-slate-200 bg-slate-50 md:flex md:w-[60%] lg:w-[63%] ${
+            view === 'catalog' ? 'flex' : 'hidden'
+          }`}
         >
           <ProductGrid
             products={products}
@@ -538,14 +580,30 @@ export function SaleScreen({
               setProductFormOpen(true);
             }}
           />
-        </main>
+        </section>
 
         <aside
-          className={`min-h-0 flex-col border-t border-slate-200 bg-white md:col-span-5 md:flex md:border-l md:border-t-0 xl:col-span-4 ${
+          aria-label="Ticket de venta"
+          className={`min-h-0 w-full flex-col bg-white shadow-xl md:flex md:w-[40%] lg:w-[37%] ${
             view === 'cart' ? 'flex' : 'hidden'
           }`}
         >
-          <div className="min-h-0 flex-1 overflow-hidden">
+          <div className="flex flex-none flex-wrap items-center justify-between gap-2 border-b-2 border-slate-200 bg-slate-50 p-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-2xl" aria-hidden="true">
+                🧾
+              </span>
+              <div>
+                <h2 className="text-xl font-black leading-tight text-slate-900">Ticket de Venta</h2>
+                <p className="text-base font-bold text-slate-500">Mostrador principal</p>
+              </div>
+            </div>
+            <span className="rounded-xl border border-emerald-200 bg-emerald-100 px-3 py-1 text-base font-black text-emerald-800">
+              {count} artículo(s)
+            </span>
+          </div>
+
+          <div className="min-h-0 flex-1">
             <Cart
               items={pricedCart}
               onInc={(key) => mutate(changeQty(cart, key, 1))}
@@ -558,78 +616,116 @@ export function SaleScreen({
             />
           </div>
 
-          <div className="border-t border-slate-200 p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-xl text-slate-600">{count} artículo(s)</span>
-              <span className="text-3xl font-extrabold">{formatMXN(total)}</span>
-            </div>
-
+          <div className="flex-none space-y-3 border-t-2 border-slate-200 bg-slate-50 p-4">
             {promoDiscount > 0 && (
-              <div className="mb-2 flex items-center justify-between text-lg text-green-700">
+              <div className="flex items-center justify-between text-base font-bold text-emerald-700">
                 <span>🏷️ Promociones</span>
-                <span className="font-bold">−{formatMXN(promoDiscount)}</span>
+                <span>−{formatMXN(promoDiscount)}</span>
               </div>
             )}
 
             {discountTotal > 0 && (
-              <div className="mb-3 flex items-center justify-between text-lg text-green-700">
+              <div className="flex items-center justify-between text-base font-bold text-emerald-700">
                 <span>Subtotal {formatMXN(subtotal)} · Descuento</span>
-                <span className="font-bold">−{formatMXN(discountTotal)}</span>
+                <span>−{formatMXN(discountTotal)}</span>
               </div>
             )}
 
-            {/* Acciones en dos columnas: caben en el ancho de la tablet. */}
-            <div className="mb-3 grid grid-cols-2 gap-2">
+            {/* Acciones en 2×2: icono arriba y texto grande, fáciles de tocar. */}
+            <div className="grid grid-cols-2 gap-2">
               {store.modules.discounts && (
                 <button
                   type="button"
                   onClick={() => setDiscountOpen(true)}
                   disabled={cart.length === 0}
-                  className={`btn py-3 text-lg ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'}`}
+                  className={`btn flex-col gap-0 border-2 px-2 py-2 text-base ${
+                    cart.length === 0
+                      ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                      : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                  }`}
                 >
-                  % Descuento
+                  <span className="text-lg" aria-hidden="true">
+                    🏷️
+                  </span>
+                  <span>% Descuento</span>
                 </button>
               )}
               <button
                 type="button"
                 onClick={holdSale}
                 disabled={cart.length === 0}
-                className={`btn py-3 text-lg ${
-                  cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-neutral'
+                className={`btn flex-col gap-0 border-2 px-2 py-2 text-base ${
+                  cart.length === 0
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                    : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
                 } ${store.modules.discounts ? '' : 'col-span-2'}`}
               >
-                ⏳ En espera
+                <span className="text-lg" aria-hidden="true">
+                  ⏳
+                </span>
+                <span>En espera</span>
               </button>
-            </div>
-
-            <div className="mb-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={undo}
                 disabled={history.length === 0}
-                className={`btn py-3 text-lg ${history.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-warning'}`}
+                className={`btn flex-col gap-0 border-2 px-2 py-2 text-base ${
+                  history.length === 0
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
+                }`}
               >
-                ↶ Deshacer
+                <span className="text-lg" aria-hidden="true">
+                  ↩️
+                </span>
+                <span>Deshacer</span>
               </button>
               <button
                 type="button"
                 onClick={() => setAskCancel(true)}
                 disabled={cart.length === 0}
-                className={`btn py-3 text-lg ${cart.length === 0 ? 'cursor-not-allowed bg-slate-100 text-slate-400' : 'btn-danger text-white'}`}
+                className={`btn flex-col gap-0 border-2 px-2 py-2 text-base ${
+                  cart.length === 0
+                    ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
+                    : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
+                }`}
               >
-                Cancelar
+                <span className="text-lg" aria-hidden="true">
+                  ❌
+                </span>
+                <span>Cancelar</span>
               </button>
+            </div>
+
+            <div className="flex flex-wrap items-baseline justify-between gap-2 rounded-2xl border-2 border-slate-200 bg-white p-4 shadow-sm">
+              <div>
+                <span className="block text-base font-black uppercase tracking-widest text-slate-500">
+                  Total a pagar
+                </span>
+                <span className="text-base font-bold text-slate-600">IVA incluido</span>
+              </div>
+              <div className="text-right">
+                <span className="text-3xl font-black tracking-tight text-slate-900 xl:text-4xl">
+                  {formatMXN(total)}
+                </span>
+                <span className="ml-1 text-base font-black text-slate-500">MXN</span>
+              </div>
             </div>
 
             <button
               type="button"
               onClick={() => setPaymentOpen(true)}
               disabled={cart.length === 0}
-              className={`btn w-full py-5 text-2xl text-white lg:text-3xl ${
-                cart.length === 0 ? 'cursor-not-allowed bg-slate-300' : 'bg-green-600 hover:bg-green-700'
+              className={`btn w-full gap-2 rounded-2xl border-b-4 px-4 py-4 text-xl font-black tracking-wide text-white xl:text-2xl ${
+                cart.length === 0
+                  ? 'cursor-not-allowed border-slate-300 bg-slate-300'
+                  : 'border-emerald-800 bg-emerald-600 hover:bg-emerald-700'
               }`}
             >
-              Cobrar {cart.length > 0 ? formatMXN(total) : ''}
+              <span className="text-2xl xl:text-3xl" aria-hidden="true">
+                💵
+              </span>
+              <span>Cobrar {cart.length > 0 ? formatMXN(total) : ''}</span>
             </button>
           </div>
         </aside>
