@@ -125,6 +125,10 @@ export function SaleScreen({
   const canManage = user.role !== 'cashier';
   const canUseInternalUse = canManage || store.internal_use_cashier_allowed;
   const allowCredit = canManage || store.credit_cashier_allowed;
+  // Cuatro acciones fijas + Interno y Menú según permisos. Con 5 o 6 se usa
+  // una cuadrícula de 3 columnas (dos filas); con 4, de 2 columnas.
+  const headerActionCount = 4 + (canUseInternalUse ? 1 : 0) + (canManage ? 1 : 0);
+  const headerActionCols = headerActionCount >= 5 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2';
   const lowStock = products.filter((p) => p.track_stock && p.stock_qty <= p.low_stock_threshold);
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers]);
   // Aviso de hora límite de pedido de hoy, en los próximos 3 horas (F-A07).
@@ -464,8 +468,9 @@ export function SaleScreen({
 
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
-      <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-5 py-2.5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-2">
+      <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-5 py-3 shadow-sm">
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          {/* Info de la tienda y del turno. */}
           <div className="flex min-w-0 items-center gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-emerald-500 bg-emerald-100 p-2.5 text-3xl shadow-sm">
               {store.logo_url ? (
@@ -485,7 +490,7 @@ export function SaleScreen({
                 <span>
                   👤 Atiende: <strong className="text-slate-900">{user.name}</strong>
                 </span>
-                <span className="text-slate-300">•</span>
+                <span className="hidden text-slate-300 xl:inline">•</span>
                 <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-emerald-800">
                   <span className="text-sm" aria-hidden="true">
                     💰
@@ -499,15 +504,16 @@ export function SaleScreen({
             </div>
           </div>
 
+          {/* Las seis acciones ocupan el alto de la info en una cuadrícula 3×2. */}
           <nav
-            aria-label="Acciones rápidas del turno"
-            className="flex flex-wrap items-center justify-end gap-2 xl:gap-3"
+            aria-label="Acciones del turno"
+            className={`grid w-full gap-2 lg:w-[470px] xl:w-[650px] ${headerActionCols}`}
           >
             <button
               type="button"
               onClick={() => setHelpOpen(true)}
               title="Pedir asistencia o instrucciones"
-              className="flex items-center gap-2 rounded-xl border-2 border-amber-300 bg-amber-100 px-3 py-2 text-base font-black text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95 xl:px-4 xl:py-2.5 xl:text-lg"
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-amber-300 bg-amber-100 px-2 py-2 text-base font-black text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
                 ❓
@@ -519,7 +525,7 @@ export function SaleScreen({
             <button
               type="button"
               onClick={openHeld}
-              className="flex items-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-3 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95 xl:px-4 xl:py-2.5 xl:text-lg"
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-2 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
                 ⏳
@@ -529,23 +535,20 @@ export function SaleScreen({
             <button
               type="button"
               onClick={onLogout}
-              className="flex items-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 px-3 py-2 text-base font-black text-red-700 shadow-sm transition hover:bg-red-100 active:scale-95 xl:px-4 xl:py-2.5 xl:text-lg"
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 px-2 py-2 text-base font-black text-red-700 shadow-sm transition hover:bg-red-100 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
                 🚪
               </span>
               <span>Salir</span>
             </button>
-          </nav>
-
-          {/* Acciones adicionales: caja para todos; interno y menú según permisos. */}
-          <nav aria-label="Acciones adicionales" className="ml-auto flex flex-wrap items-center justify-end gap-2">
             <button
               type="button"
               onClick={onOpenCash}
-              className="flex min-h-14 items-center gap-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-3 py-2 text-base font-extrabold text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
+              title="Abrir caja"
+              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-2 py-2 text-base font-extrabold text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
             >
-              <span className="text-xl" aria-hidden="true">
+              <span className="text-xl xl:text-2xl" aria-hidden="true">
                 💰
               </span>
               <span>Caja</span>
@@ -554,21 +557,23 @@ export function SaleScreen({
               <button
                 type="button"
                 onClick={() => setInternalUseOpen(true)}
-                className="flex min-h-14 items-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-3 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+                title="Registrar consumo interno"
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-2 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
               >
-                <span className="text-xl" aria-hidden="true">
+                <span className="text-xl xl:text-2xl" aria-hidden="true">
                   🧾
                 </span>
-                <span>Consumo interno</span>
+                <span className="xl:hidden">Interno</span>
+                <span className="hidden whitespace-nowrap xl:inline">Consumo interno</span>
               </button>
             )}
             {canManage && (
               <button
                 type="button"
                 onClick={onOpenAdmin}
-                className="flex min-h-14 items-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-3 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-2 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
               >
-                <span className="text-xl" aria-hidden="true">
+                <span className="text-xl xl:text-2xl" aria-hidden="true">
                   📋
                 </span>
                 <span>Menú</span>
