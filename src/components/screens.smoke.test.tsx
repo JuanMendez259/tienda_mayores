@@ -12,6 +12,7 @@ import { CashPanel } from './CashPanel';
 import { ConfirmDialog } from './ConfirmDialog';
 import { ProductFormModal } from './ProductFormModal';
 import { DiscountModal } from './DiscountModal';
+import { ProductGrid } from './ProductGrid';
 import { AdminScreen } from './admin/AdminScreen';
 import { CapturaScreen } from './CapturaScreen';
 
@@ -63,6 +64,41 @@ describe('render de pantallas (smoke)', () => {
     );
     expect(html).toContain('Jitomate');
     expect(html).toContain('Cobrar');
+    // La cabecera reduce seis acciones a tres primarias y un panel "Más".
+    expect(html).toContain('En espera');
+    expect(html).toContain('Más');
+    expect(html).not.toContain('Salir del turno');
+  });
+
+  it('marca agotado y stock bajo en la cuadrícula', () => {
+    const soldOut = renderToStaticMarkup(
+      <ProductGrid
+        products={[{ ...seedProducts[0], stock_qty: 0, track_stock: true }]}
+        categories={seedCategories}
+        onPick={noop}
+        onNewProduct={noop}
+      />,
+    );
+    expect(soldOut).toContain('Agotado');
+    expect(soldOut).toContain('agotado');
+
+    const low = renderToStaticMarkup(
+      <ProductGrid
+        products={[
+          {
+            ...seedProducts[0],
+            brand: 'La Costeña',
+            stock_qty: 500,
+            low_stock_threshold: 1000,
+          },
+        ]}
+        categories={seedCategories}
+        onPick={noop}
+        onNewProduct={noop}
+      />,
+    );
+    expect(low).toContain('Quedan 0.500 kg');
+    expect(low).toContain('Marca:');
   });
 
   it('renderiza los modales de cobro, peso, ticket, caja y producto', () => {
@@ -75,11 +111,11 @@ describe('render de pantallas (smoke)', () => {
     expect(
       renderToStaticMarkup(<PaymentModal totalCents={0} onCancel={noop} onConfirm={noop} />),
     ).toContain('Cobrar sin pago');
-    expect(
-      renderToStaticMarkup(
-        <WeightModal product={seedProducts[0]} onCancel={noop} onConfirm={noop} />,
-      ),
-    ).toContain(seedProducts[0].name);
+    const weight = renderToStaticMarkup(
+      <WeightModal product={seedProducts[0]} onCancel={noop} onConfirm={noop} />,
+    );
+    expect(weight).toContain(seedProducts[0].name);
+    expect(weight).toContain('Tope por renglón: 50 kg');
     expect(
       renderToStaticMarkup(
         <TicketModal

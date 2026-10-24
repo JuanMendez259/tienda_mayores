@@ -1,6 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { Category, Product } from '../types/database';
 import { formatMXN } from '../lib/money';
+import { formatStock } from '../lib/weight';
+
+/** Categorías visibles antes de ofrecer "Ver más". */
+const CATEGORY_LIMIT = 6;
 
 interface ProductGridProps {
   products: Product[];
@@ -66,8 +70,22 @@ export function ProductGrid({
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [brand, setBrand] = useState<string | null>(null);
   const [bestOnly, setBestOnly] = useState(false);
+  const [showAllCategories, setShowAllCategories] = useState(false);
+  const [brandPanelOpen, setBrandPanelOpen] = useState(false);
 
   const categoryById = useMemo(() => new Map(categories.map((item) => [item.id, item])), [categories]);
+  const visibleCategories = showAllCategories ? categories : categories.slice(0, CATEGORY_LIMIT);
+  const hiddenCategoryCount = categories.length - visibleCategories.length;
+  const activeFilterCount =
+    (query.trim() ? 1 : 0) + (categoryId ? 1 : 0) + (brand ? 1 : 0) + (bestOnly ? 1 : 0);
+
+  function clearFilters() {
+    setQuery('');
+    setCategoryId(null);
+    setBrand(null);
+    setBestOnly(false);
+    setBrandPanelOpen(false);
+  }
 
   const brands = useMemo(() => {
     const set = new Set<string>();
@@ -132,7 +150,8 @@ export function ProductGrid({
           </button>
         </div>
 
-        <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+        {/* Chips en filas visibles: nada queda escondido en un carrusel. */}
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             aria-pressed={categoryId === null && !bestOnly}
@@ -142,7 +161,7 @@ export function ProductGrid({
             }}
             className={categoryId === null && !bestOnly ? activeChip : inactiveChip}
           >
-            <span>✨</span> Todo
+            <span aria-hidden="true">✨</span> Todo
           </button>
           <button
             type="button"
@@ -157,9 +176,9 @@ export function ProductGrid({
                 : inactiveChip
             }
           >
-            <span>🔥</span> Más vendidos
+            <span aria-hidden="true">🔥</span> Más vendidos
           </button>
-          {categories.map((category) => (
+          {visibleCategories.map((category) => (
             <button
               key={category.id}
               type="button"
@@ -170,44 +189,105 @@ export function ProductGrid({
               }}
               className={categoryId === category.id ? activeChip : inactiveChip}
             >
-              <span>{emojiFromIcon(category.image_url) ?? visualFor(category.name).emoji}</span>
+              <span aria-hidden="true">
+                {emojiFromIcon(category.image_url) ?? visualFor(category.name).emoji}
+              </span>
               {category.name}
             </button>
           ))}
-        </div>
-
-        {brands.length > 0 && (
-          <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="shrink-0 text-sm font-black uppercase tracking-wider text-slate-600">
-              Marca
-            </span>
+          {categories.length > CATEGORY_LIMIT && (
             <button
               type="button"
-              onClick={() => setBrand(null)}
-              aria-pressed={brand === null}
-              className={
-                brand === null
-                  ? 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-700 bg-slate-800 px-3 py-1.5 text-base font-extrabold text-white'
-                  : 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-200 bg-white px-3 py-1.5 text-base font-extrabold text-slate-700 hover:bg-slate-100'
-              }
+              aria-expanded={showAllCategories}
+              onClick={() => setShowAllCategories((value) => !value)}
+              className={inactiveChip}
             >
-              Todas
+              <span aria-hidden="true">📂</span>
+              {showAllCategories ? 'Ver menos' : `Ver ${hiddenCategoryCount} más`}
             </button>
-            {brands.map((item) => (
+          )}
+        </div>
+
+        {(brands.length > 0 || activeFilterCount > 0) && (
+          <div className="flex flex-wrap items-center gap-2">
+            {brands.length > 0 && (
               <button
-                key={item}
                 type="button"
-                onClick={() => setBrand(item)}
-                aria-pressed={brand === item}
+                aria-expanded={brandPanelOpen}
+                aria-controls="brand-panel"
+                onClick={() => setBrandPanelOpen((value) => !value)}
                 className={
-                  brand === item
-                    ? 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-700 bg-slate-800 px-3 py-1.5 text-base font-extrabold text-white'
-                    : 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-200 bg-white px-3 py-1.5 text-base font-extrabold text-slate-700 hover:bg-slate-100'
+                  brand
+                    ? activeChip
+                    : 'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-300 bg-white px-4 py-2.5 text-base font-extrabold text-slate-800 shadow-xs transition hover:bg-slate-100 active:scale-95'
                 }
               >
-                {item}
+                <span aria-hidden="true">🏷️</span>
+                <span>
+                  Marca: <strong>{brand ?? 'Todas'}</strong>
+                </span>
+                <span aria-hidden="true">{brandPanelOpen ? '▲' : '▼'}</span>
               </button>
-            ))}
+            )}
+            {brand && (
+              <button
+                type="button"
+                onClick={() => setBrand(null)}
+                className={inactiveChip}
+              >
+                <span aria-hidden="true">✖</span> Quitar marca
+              </button>
+            )}
+            {activeFilterCount > 0 && (
+              <button type="button" onClick={clearFilters} className={inactiveChip}>
+                <span aria-hidden="true">↺</span> Limpiar filtros
+              </button>
+            )}
+          </div>
+        )}
+
+        {brands.length > 0 && brandPanelOpen && (
+          <div
+            id="brand-panel"
+            className="rounded-2xl border-2 border-slate-200 bg-slate-50 p-3"
+          >
+            <p className="mb-2 text-base font-black uppercase tracking-wider text-slate-600">
+              Elige una marca
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                aria-pressed={brand === null}
+                onClick={() => {
+                  setBrand(null);
+                  setBrandPanelOpen(false);
+                }}
+                className={brand === null ? activeChip : inactiveChip}
+              >
+                Todas
+              </button>
+              {brands.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  aria-pressed={brand === item}
+                  onClick={() => {
+                    setBrand(item);
+                    setBrandPanelOpen(false);
+                  }}
+                  className={brand === item ? activeChip : inactiveChip}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setBrandPanelOpen(false)}
+              className="btn btn-neutral mt-3 w-full py-3 text-lg"
+            >
+              Cerrar marcas
+            </button>
           </div>
         )}
       </div>
@@ -217,6 +297,11 @@ export function ProductGrid({
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
             <span className="text-6xl">🔎</span>
             <p className="text-xl font-bold">No se encontraron productos.</p>
+            {activeFilterCount > 0 && (
+              <button type="button" onClick={clearFilters} className="btn btn-neutral px-6 py-4 text-xl">
+                ↺ Ver todo el catálogo
+              </button>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-3">
@@ -239,23 +324,39 @@ export function ProductGrid({
                   : product.sale_unit === 'volume'
                     ? 'Por litro'
                     : 'Por kilo a granel';
+              const soldOut = product.track_stock && product.stock_qty <= 0;
+              const lowStock =
+                product.track_stock &&
+                product.stock_qty > 0 &&
+                product.stock_qty <= product.low_stock_threshold;
               return (
                 <article
                   key={product.id}
-                  className="group relative flex flex-col justify-between rounded-3xl border-2 border-slate-200 bg-white p-3.5 shadow-sm transition hover:border-emerald-400"
+                  className={`group relative flex flex-col justify-between rounded-3xl border-2 p-3.5 shadow-sm transition ${
+                    soldOut
+                      ? 'border-slate-200 bg-slate-50'
+                      : 'border-slate-200 bg-white hover:border-emerald-400'
+                  }`}
                 >
                   {/* Toda la tarjeta es el botón de agregar (objetivo táctil enorme). */}
                   <button
                     type="button"
                     onClick={() => onPick(product)}
-                    aria-label={`Agregar ${product.name}, ${formatMXN(product.price_cents)} ${
-                      product.sale_unit === 'piece'
-                        ? 'por pieza'
-                        : product.sale_unit === 'volume'
-                          ? 'por litro'
-                          : 'por kilo'
+                    disabled={soldOut}
+                    aria-label={
+                      soldOut
+                        ? `${product.name} agotado`
+                        : `Agregar ${product.name}, ${formatMXN(product.price_cents)} ${
+                            product.sale_unit === 'piece'
+                              ? 'por pieza'
+                              : product.sale_unit === 'volume'
+                                ? 'por litro'
+                                : 'por kilo'
+                          }`
+                    }
+                    className={`absolute inset-0 z-10 rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${
+                      soldOut ? 'cursor-not-allowed' : ''
                     }`}
-                    className="absolute inset-0 z-10 rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
                   />
                   <span
                     className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-sm font-extrabold uppercase tracking-wide text-white ${visual.badge}`}
@@ -279,6 +380,13 @@ export function ProductGrid({
                       {product.name}
                     </h3>
                     <p className="mb-2 text-base font-semibold text-slate-600">{subtitle}</p>
+                    {soldOut ? (
+                      <p className="mb-2 text-base font-black text-red-700">Agotado</p>
+                    ) : lowStock ? (
+                      <p className="mb-2 text-base font-bold text-amber-800">
+                        Quedan {formatStock(product.stock_qty, product.sale_unit)}
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                     <span className="text-2xl font-black text-slate-900">
@@ -286,9 +394,11 @@ export function ProductGrid({
                     </span>
                     <span
                       aria-hidden="true"
-                      className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-600 text-2xl font-black text-white shadow-md transition group-hover:bg-emerald-700"
+                      className={`flex h-14 w-14 items-center justify-center rounded-2xl text-2xl font-black text-white shadow-md transition ${
+                        soldOut ? 'bg-slate-400' : 'bg-emerald-600 group-hover:bg-emerald-700'
+                      }`}
                     >
-                      +
+                      {soldOut ? '—' : '+'}
                     </span>
                   </div>
                 </article>

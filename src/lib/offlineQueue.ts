@@ -17,8 +17,16 @@ export interface PendingSale {
 const DB_NAME = 'pos-abarrotes';
 const STORE = 'pending_sales';
 
+/** Evento para que la interfaz refresque el contador de ventas pendientes. */
+export const PENDING_SALES_EVENT = 'pos:pending-sales-changed';
+
 let memory: PendingSale[] = [];
 let dbPromise: Promise<IDBDatabase | null> | null = null;
+
+function notifyChange(): void {
+  if (typeof window === 'undefined') return;
+  window.dispatchEvent(new Event(PENDING_SALES_EVENT));
+}
 
 function openDb(): Promise<IDBDatabase | null> {
   if (typeof indexedDB === 'undefined') return Promise.resolve(null);
@@ -67,6 +75,7 @@ export async function enqueueSale(input: CheckoutInput): Promise<void> {
     memory = [...memory, entry];
   }
   await withStore('readwrite', (store) => store.put(entry));
+  notifyChange();
 }
 
 /** Lista las ventas pendientes, más antiguas primero. */
@@ -80,6 +89,7 @@ export async function listPendingSales(): Promise<PendingSale[]> {
 export async function removePendingSale(clientUuid: string): Promise<void> {
   memory = memory.filter((e) => e.client_uuid !== clientUuid);
   await withStore('readwrite', (store) => store.delete(clientUuid));
+  notifyChange();
 }
 
 /** Número de ventas pendientes por enviar. */
@@ -92,4 +102,5 @@ export async function pendingCount(): Promise<number> {
 export async function clearPendingSales(): Promise<void> {
   memory = [];
   await withStore('readwrite', (store) => store.clear());
+  notifyChange();
 }

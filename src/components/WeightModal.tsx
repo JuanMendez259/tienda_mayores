@@ -11,6 +11,9 @@ interface WeightModalProps {
   onConfirm: (measure: number) => void;
 }
 
+/** Tope por renglón: 50 kg o 50 L. Evita teclear 500 y vender 500 kg. */
+export const MAX_MEASURE = 50_000;
+
 /** Captura manual de peso (kg) o volumen (L) con teclado grande (F-105, F-106). */
 export function WeightModal({ product, onCancel, onConfirm }: WeightModalProps) {
   const [text, setText] = useState('');
@@ -19,6 +22,9 @@ export function WeightModal({ product, onCancel, onConfirm }: WeightModalProps) 
     unit === 'volume' ? parseLitersToMilliliters(text) : parseKilogramsToGrams(text);
   const total = lineTotalByMeasure(product.price_cents, measure);
   const perLabel = unit === 'volume' ? 'el litro' : 'el kilo';
+  const overMax = measure > MAX_MEASURE;
+  // "50.000 kg" se lee como cincuenta mil en México; el tope se escribe simple.
+  const maxLabel = unit === 'volume' ? '50 L' : '50 kg';
   const titleId = useId();
   const panelRef = useModalA11y(onCancel);
 
@@ -84,6 +90,15 @@ export function WeightModal({ product, onCancel, onConfirm }: WeightModalProps) 
 
         <NumericKeypad value={text} onChange={setText} autoFocus />
 
+        <p
+          role={overMax ? 'alert' : undefined}
+          className={`mt-2 text-center text-base font-bold ${
+            overMax ? 'text-red-700' : 'text-slate-600'
+          }`}
+        >
+          {overMax ? `Máximo ${maxLabel} por renglón.` : `Tope por renglón: ${maxLabel}.`}
+        </p>
+
         <div className="mt-4 flex gap-3">
           <button type="button" onClick={onCancel} className="btn btn-neutral flex-1 py-4 text-xl">
             Cancelar
@@ -91,9 +106,11 @@ export function WeightModal({ product, onCancel, onConfirm }: WeightModalProps) 
           <button
             type="button"
             onClick={() => onConfirm(measure)}
-            disabled={measure <= 0}
+            disabled={measure <= 0 || overMax}
             className={`btn flex-1 py-4 text-xl text-white ${
-              measure > 0 ? 'bg-emerald-600 hover:bg-emerald-700' : 'cursor-not-allowed bg-slate-400'
+              measure > 0 && !overMax
+                ? 'bg-emerald-600 hover:bg-emerald-700'
+                : 'cursor-not-allowed bg-slate-400'
             }`}
           >
             Agregar {formatMXN(total)}

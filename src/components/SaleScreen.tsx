@@ -36,6 +36,7 @@ import { beep } from '../lib/sound';
 import { enqueueSale } from '../lib/offlineQueue';
 import { logError } from '../lib/errorLog';
 import { useModalA11y } from '../lib/useModalA11y';
+import { usePendingSales } from '../lib/usePendingSales';
 import { useBarcodeScanner } from '../devices/barcode';
 import { PAYMENT_METHOD_LABELS } from '../devices/payments';
 import { ProductGrid } from './ProductGrid';
@@ -125,7 +126,15 @@ export function SaleScreen({
   } | null>(null);
   const [askSelfAuthorize, setAskSelfAuthorize] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const heldPanelRef = useModalA11y(() => setHeldOpen(false), heldOpen);
+  const morePanelRef = useModalA11y(() => setMoreOpen(false), moreOpen);
+  const {
+    count: pendingSales,
+    online,
+    syncing,
+    sync: syncPendingSales,
+  } = usePendingSales();
 
   // Los descuentos por promoción se calculan al vuelo (F-407).
   const pricedCart = useMemo(() => applyAutoPromotions(cart, promotions), [cart, promotions]);
@@ -141,10 +150,8 @@ export function SaleScreen({
   const allowCredit = canManage || store.credit_cashier_allowed;
   const roleLabel =
     user.role === 'owner' ? 'Dueño' : user.role === 'manager' ? 'Encargado' : 'Cajero';
-  // Cuatro acciones fijas + Interno y Menú según permisos. Con 5 o 6 se usa
-  // una cuadrícula de 3 columnas (dos filas); con 4, de 2 columnas.
-  const headerActionCount = 4 + (canUseInternalUse ? 1 : 0) + (canManage ? 1 : 0);
-  const headerActionCols = headerActionCount >= 5 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2';
+  // Tres acciones primarias y un panel explícito para lo demás: la cabecera
+  // deja de competir con el catálogo y "Salir" sale de la zona activa.
   const lowStock = products.filter((p) => p.track_stock && p.stock_qty <= p.low_stock_threshold);
   const supplierById = useMemo(() => new Map(suppliers.map((s) => [s.id, s])), [suppliers]);
   // Aviso de hora límite de pedido de hoy, en los próximos 3 horas (F-A07).
@@ -246,6 +253,7 @@ export function SaleScreen({
     !askLogout &&
     !askSelfAuthorize &&
     !authOpen &&
+    !moreOpen &&
     ticket === null;
   useBarcodeScanner(handleScan, scanningEnabled);
 
@@ -263,6 +271,10 @@ export function SaleScreen({
   }
 
   function pick(product: Product) {
+    if (product.track_stock && product.stock_qty <= 0) {
+      setMessage(`${product.name} está agotado. Avisa al encargado.`);
+      return;
+    }
     if (product.sale_unit === 'piece') {
       mutate(addPiece(cart, product));
     } else {
@@ -409,6 +421,24 @@ export function SaleScreen({
   async function openHeld() {
     setHeld(await repository.listHeldSales(store.id));
     setHeldOpen(true);
+  }
+
+  /** Envía las ventas guardadas sin conexión desde el aviso de la pantalla. */
+  async function syncPending() {
+    try {
+      const result = await syncPendingSales();
+      if (result.sent > 0) onRefreshProducts();
+      setMessage(
+        result.failed > 0
+          ? `Se enviaron ${result.sent} venta(s); ${result.failed} no se pudieron enviar.`
+          : result.sent > 0
+            ? `Se enviaron ${result.sent} venta(s) pendientes.`
+            : 'No había ventas pendientes.',
+      );
+    } catch (cause) {
+      logError(cause, 'sync-now');
+      setMessage('No se pudieron enviar las ventas. Revisa la conexión.');
+    }
   }
 
   function resumeHeld(entry: SaleWithItems) {
@@ -587,28 +617,26 @@ export function SaleScreen({
             </div>
           </div>
 
-          {/* Las seis acciones ocupan el alto de la info en una cuadrícula 3×2. */}
+          {/* Tres acciones primarias + un panel explícito; una sola fila. */}
           <nav
             aria-label="Acciones del turno"
-            className={`grid w-full gap-2 lg:w-[470px] xl:w-[650px] ${headerActionCols}`}
+            className="grid w-full grid-cols-4 gap-2 lg:w-[440px] xl:w-[520px]"
           >
             <button
               type="button"
               onClick={() => setHelpOpen(true)}
               title="Pedir asistencia o instrucciones"
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-amber-300 bg-amber-100 px-2 py-2 text-base font-black text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-amber-300 bg-amber-100 px-1 py-2 text-base font-black leading-tight text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
                 ❓
               </span>
-              <span>
-                Ayuda<span className="hidden xl:inline"> / SOS</span>
-              </span>
+              <span>Ayuda</span>
             </button>
             <button
               type="button"
               onClick={openHeld}
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-2 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-2 text-base font-extrabold leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
                 ⏳
@@ -617,59 +645,64 @@ export function SaleScreen({
             </button>
             <button
               type="button"
-              onClick={() => setAskLogout(true)}
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 px-2 py-2 text-base font-black text-red-700 shadow-sm transition hover:bg-red-100 active:scale-95"
-            >
-              <span className="text-xl xl:text-2xl" aria-hidden="true">
-                🚪
-              </span>
-              <span>Salir</span>
-            </button>
-            <button
-              type="button"
               onClick={onOpenCash}
               title="Abrir caja"
-              className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-2 py-2 text-base font-extrabold text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-1 py-2 text-base font-extrabold leading-tight text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
                 💰
               </span>
               <span>Caja</span>
             </button>
-            {canUseInternalUse && (
-              <button
-                type="button"
-                onClick={() => setInternalUseOpen(true)}
-                title="Registrar consumo interno"
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-2 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
-              >
-                <span className="text-xl xl:text-2xl" aria-hidden="true">
-                  🧾
-                </span>
-                <span className="xl:hidden">Interno</span>
-                <span className="hidden whitespace-nowrap xl:inline">Consumo interno</span>
-              </button>
-            )}
-            {canManage && (
-              <button
-                type="button"
-                onClick={onOpenAdmin}
-                className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-300 bg-slate-100 px-2 py-2 text-base font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
-              >
-                <span className="text-xl xl:text-2xl" aria-hidden="true">
-                  📋
-                </span>
-                <span>Menú</span>
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              aria-haspopup="dialog"
+              aria-expanded={moreOpen}
+              title="Más acciones del turno"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-2 text-base font-extrabold leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+            >
+              <span className="text-xl xl:text-2xl" aria-hidden="true">
+                ⋯
+              </span>
+              <span>Más</span>
+            </button>
           </nav>
         </div>
       </header>
 
       {lowStock.length > 0 && (
-        <div className="flex items-center gap-2 bg-amber-100 px-4 py-2 text-lg font-semibold text-amber-900">
+        <div
+          role="status"
+          className="flex items-center gap-2 bg-amber-100 px-4 py-2 text-lg font-semibold text-amber-900"
+        >
           <span aria-hidden="true">⚠️</span>
-          {lowStock.length} {lowStock.length === 1 ? 'producto' : 'productos'} con poco stock. Revísalo en Menú → Inventario.
+          <span>
+            {lowStock.length} {lowStock.length === 1 ? 'producto' : 'productos'} con poco stock.{' '}
+            {canManage ? 'Revísalo en Más → Menú → Inventario.' : 'Avisa al encargado para reponer.'}
+          </span>
+        </div>
+      )}
+
+      {pendingSales > 0 && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex flex-wrap items-center gap-3 bg-sky-100 px-4 py-2 text-lg font-semibold text-sky-950"
+        >
+          <span aria-hidden="true">📤</span>
+          <span className="flex-1">
+            {pendingSales} {pendingSales === 1 ? 'venta pendiente' : 'ventas pendientes'} por enviar
+            {online ? '.' : '; se enviarán al reconectar.'}
+          </span>
+          <button
+            type="button"
+            onClick={() => void syncPending()}
+            disabled={syncing || !online}
+            className="btn btn-neutral min-h-12 px-4 py-2 text-base disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {syncing ? 'Enviando…' : online ? 'Sincronizar ahora' : 'Sin conexión'}
+          </button>
         </div>
       )}
 
@@ -868,6 +901,71 @@ export function SaleScreen({
       )}
 
       {helpOpen && <HelpModal onClose={() => setHelpOpen(false)} />}
+
+      {moreOpen && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
+          <div
+            ref={morePanelRef}
+            tabIndex={-1}
+            className="card w-full max-w-md p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="more-actions-title"
+          >
+            <h2 id="more-actions-title" className="title mb-1 text-3xl">
+              Más acciones
+            </h2>
+            <p className="mb-4 text-lg text-slate-600">
+              Lo que no cabe en el mostrador, siempre a la vista.
+            </p>
+            <div className="space-y-3">
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    onOpenAdmin();
+                  }}
+                  className="btn btn-neutral w-full justify-start gap-3 px-4 py-4 text-xl"
+                >
+                  <span aria-hidden="true">📋</span> Menú de administración
+                </button>
+              )}
+              {canUseInternalUse && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMoreOpen(false);
+                    setInternalUseOpen(true);
+                  }}
+                  className="btn btn-neutral w-full justify-start gap-3 px-4 py-4 text-xl"
+                >
+                  <span aria-hidden="true">🧾</span> Consumo interno
+                </button>
+              )}
+            </div>
+            <div className="mt-5 border-t-2 border-slate-200 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  setMoreOpen(false);
+                  setAskLogout(true);
+                }}
+                className="btn w-full justify-start gap-3 border-2 border-red-200 bg-red-50 px-4 py-4 text-xl text-red-700 hover:bg-red-100"
+              >
+                <span aria-hidden="true">🚪</span> Salir del turno
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMoreOpen(false)}
+              className="btn btn-neutral mt-4 w-full py-4 text-xl"
+            >
+              Regresar
+            </button>
+          </div>
+        </div>
+      )}
 
       {weightFor && (
         <WeightModal

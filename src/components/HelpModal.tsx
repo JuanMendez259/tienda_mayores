@@ -19,7 +19,7 @@ const GUIDES: Guide[] = [
     title: 'Cobrar una venta',
     steps: [
       'Toca los productos en la cuadrícula para agregarlos.',
-      'Para productos a granel escribe cuántos kilos o litros pesaste.',
+      'Para productos a granel escribe cuántos kilos o litros pesaste (máximo 50 kg o 50 L por renglón).',
       'Usa los botones + y − para cambiar cantidades.',
       'Si hay una promoción, se aplica sola. Para un descuento manual toca “Descuento”; puede pedir autorización.',
       'Toca el botón verde “Cobrar”, elige efectivo, Clip, Mercado Pago o fiado y confirma.',
@@ -52,7 +52,7 @@ const GUIDES: Guide[] = [
     icon: '🏷️',
     title: 'Promociones (2×1 o por cantidad)',
     steps: [
-      'Entra a “Menú” → “Promociones”.',
+      'Entra a “Más” → “Menú de administración” → “Promociones”.',
       'Elige el producto y el tipo: 2×1 o descuento por cantidad.',
       'Guarda; el descuento se aplica solo al vender ese producto.',
     ],
