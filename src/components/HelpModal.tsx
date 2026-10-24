@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface HelpModalProps {
   onClose: () => void;
@@ -20,8 +21,8 @@ const GUIDES: Guide[] = [
       'Toca los productos en la cuadrícula para agregarlos.',
       'Para productos a granel escribe cuántos kilos o litros pesaste.',
       'Usa los botones + y − para cambiar cantidades.',
-      'Si hay descuento o promoción, aparecerá solo o con el botón %.',
-      'Toca el botón verde “Cobrar”, escribe el efectivo recibido y confirma.',
+      'Si hay una promoción, se aplica sola. Para un descuento manual toca “Descuento”; puede pedir autorización.',
+      'Toca el botón verde “Cobrar”, elige efectivo, Clip, Mercado Pago o fiado y confirma.',
     ],
   },
   {
@@ -29,7 +30,7 @@ const GUIDES: Guide[] = [
     icon: '➕',
     title: 'Agregar un producto nuevo',
     steps: [
-      'En la pantalla de venta toca “Producto nuevo”.',
+      'En la pantalla de venta toca “Nuevo / Manual”.',
       'Escribe el nombre y el precio; elige pieza, kilo o litro.',
       'Puedes tomar una foto desde el celular con “📷 Cargar fotos”.',
       'Guarda; el producto queda disponible de inmediato.',
@@ -62,11 +63,22 @@ const GUIDES: Guide[] = [
 export function HelpModal({ onClose }: HelpModalProps) {
   const [guideId, setGuideId] = useState(GUIDES[0].id);
   const guide = GUIDES.find((g) => g.id === guideId) ?? GUIDES[0];
+  const titleId = useId();
+  const panelRef = useModalA11y(onClose);
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card max-h-[92dvh] w-full max-w-3xl overflow-y-auto p-6" role="dialog" aria-modal="true">
-        <h2 className="title mb-4 text-3xl">Ayuda</h2>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="card max-h-[92dvh] w-full max-w-3xl overflow-y-auto p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <h2 id={titleId} className="title mb-4 text-3xl">
+          Ayuda
+        </h2>
 
         <div className="mb-4 flex flex-wrap gap-2">
           {GUIDES.map((item) => (
@@ -74,6 +86,7 @@ export function HelpModal({ onClose }: HelpModalProps) {
               key={item.id}
               type="button"
               onClick={() => setGuideId(item.id)}
+              aria-pressed={guideId === item.id}
               className={`btn px-4 py-3 text-lg ${guideId === item.id ? 'btn-primary text-white' : 'btn-neutral'}`}
             >
               <span aria-hidden="true">{item.icon}</span> {item.title}

@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react';
+
 interface NumericKeypadProps {
   value: string;
   onChange: (value: string) => void;
@@ -7,6 +9,8 @@ interface NumericKeypadProps {
   confirmDanger?: boolean;
   allowDecimal?: boolean;
   maxLength?: number;
+  /** Enfoca el primer dígito al montar (útil dentro de un modal). */
+  autoFocus?: boolean;
 }
 
 /** Teclado numérico grande (botones >= 56x56 px). Sin gestos complejos. */
@@ -19,7 +23,15 @@ export function NumericKeypad({
   confirmDanger = false,
   allowDecimal = true,
   maxLength = 12,
+  autoFocus = false,
 }: NumericKeypadProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!autoFocus) return;
+    rootRef.current?.querySelector<HTMLButtonElement>('button')?.focus();
+  }, [autoFocus]);
+
   const press = (digit: string) => {
     if (value.length >= maxLength) return;
     if (digit === '.' && value.includes('.')) return;
@@ -29,14 +41,15 @@ export function NumericKeypad({
   const clear = () => onChange('');
 
   return (
-    <div className="flex flex-col gap-3">
+    <div ref={rootRef} className="flex flex-col gap-3">
       <div className="mx-auto grid w-full max-w-[320px] grid-cols-3 gap-2">
         {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (
           <button
             key={digit}
             type="button"
             onClick={() => press(digit)}
-            className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
+            data-autofocus={autoFocus && digit === '1' ? '' : undefined}
+            className="btn btn-neutral h-14 min-h-14 p-0 text-2xl"
           >
             {digit}
           </button>
@@ -44,7 +57,7 @@ export function NumericKeypad({
         <button
           type="button"
           onClick={() => (allowDecimal ? press('.') : clear())}
-          className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
+          className="btn btn-neutral h-14 min-h-14 p-0 text-2xl"
           aria-label={allowDecimal ? 'Punto decimal' : 'Borrar todo'}
         >
           {allowDecimal ? '.' : 'C'}
@@ -52,14 +65,14 @@ export function NumericKeypad({
         <button
           type="button"
           onClick={() => press('0')}
-          className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
+          className="btn btn-neutral h-14 min-h-14 p-0 text-2xl"
         >
           0
         </button>
         <button
           type="button"
           onClick={backspace}
-          className="btn btn-neutral h-12 min-h-12 p-0 text-3xl sm:h-auto sm:aspect-square"
+          className="btn btn-neutral h-14 min-h-14 p-0 text-2xl"
           aria-label="Borrar"
         >
           ⌫
@@ -71,7 +84,7 @@ export function NumericKeypad({
           onClick={onConfirm}
           disabled={confirmDisabled}
           className={`btn mx-auto w-full max-w-[320px] py-4 text-2xl text-white ${
-            confirmDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'
+            confirmDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-emerald-600 hover:bg-emerald-700'
           } ${confirmDisabled ? 'cursor-not-allowed opacity-40' : ''}`}
         >
           {confirmLabel}

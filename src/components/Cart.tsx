@@ -35,13 +35,13 @@ export function Cart({ items, onInc, onDec, onRemove, onEditMeasure }: CartProps
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="text-lg font-black leading-snug text-slate-900">{item.name}</h4>
-                <p className="text-sm font-bold text-slate-500">
+                <p className="text-base font-bold text-slate-600">
                   {isPiece
                     ? `Precio unitario: ${formatMXN(item.unitPriceCents)}`
                     : `${formatMeasure(item.measure ?? 0, item.saleUnit === 'volume' ? 'volume' : 'weight')} × ${formatMXN(item.unitPriceCents)}${unitSuffix}`}
                 </p>
                 {item.discountCents > 0 && (
-                  <p className="text-sm font-bold text-emerald-700">
+                  <p className="text-base font-bold text-emerald-700">
                     Descuento −{formatMXN(item.discountCents)}
                   </p>
                 )}

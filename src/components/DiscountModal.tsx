@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { cartTotalCents, type CartItem } from '../lib/cart';
 import { discountAmount, formatMXN, parseAmountToCents, type DiscountMode } from '../lib/money';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface DiscountModalProps {
   cart: CartItem[];
@@ -25,6 +26,8 @@ export function DiscountModal({
   const [mode, setMode] = useState<DiscountMode>('amount');
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const titleId = useId();
+  const panelRef = useModalA11y(onClose);
 
   const line = cart.find((item) => item.key === scope) ?? null;
   const base = line ? line.lineTotalCents : cartTotalCents(cart);
@@ -55,8 +58,17 @@ export function DiscountModal({
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card max-h-[92dvh] w-full max-w-xl overflow-y-auto p-6" role="dialog" aria-modal="true">
-        <h2 className="title mb-4 text-3xl">Aplicar descuento</h2>
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="card max-h-[92dvh] w-full max-w-xl overflow-y-auto p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <h2 id={titleId} className="title mb-4 text-3xl">
+          Aplicar descuento
+        </h2>
 
         <div className="mb-4">
           <label className={label} htmlFor="d-scope">¿A qué se aplica?</label>
@@ -104,7 +116,9 @@ export function DiscountModal({
         </div>
 
         {error && (
-          <p className="mb-4 rounded-xl bg-red-100 p-3 text-lg font-semibold text-red-800">{error}</p>
+          <p role="alert" className="mb-4 rounded-xl bg-red-100 p-3 text-lg font-semibold text-red-800">
+            {error}
+          </p>
         )}
 
         <div className="flex flex-wrap gap-3">

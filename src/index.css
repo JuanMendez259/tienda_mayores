@@ -30,6 +30,21 @@ textarea {
   touch-action: manipulation;
 }
 
+/* Foco visible para teclado y lectores de pantalla. */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible {
+  outline: 3px solid #059669;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:active,
+  button:active {
+    transform: none;
+  }
+}
+
 @layer components {
   .btn {
     @apply inline-flex items-center justify-center gap-2 rounded-2xl px-5 text-xl font-extrabold transition-colors select-none;

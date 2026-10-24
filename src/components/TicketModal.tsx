@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import type { Store } from '../types/database';
 import { formatMXN } from '../lib/money';
 import { ticketPrinter, type PrintableTicket } from '../devices/printer';
 import { normalizePhone, ticketToText, whatsappUrl } from '../lib/ticket';
+import { useModalA11y } from '../lib/useModalA11y';
 
 export interface TicketLine {
   name: string;
@@ -38,6 +39,8 @@ interface TicketModalProps {
 export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) {
   const [phone, setPhone] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
+  const titleId = useId();
+  const panelRef = useModalA11y(onNewSale, open && data !== null);
 
   if (!open || !data) return null;
   const fecha = new Date(data.dateIso).toLocaleString('es-MX');
@@ -69,9 +72,18 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card max-h-[92dvh] w-full max-w-md overflow-y-auto p-6" role="dialog" aria-modal="true">
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="card max-h-[92dvh] w-full max-w-md overflow-y-auto p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
         <div className="mb-4 border-b border-dashed border-slate-400 pb-4 text-center">
-          <h2 className="text-2xl font-extrabold">{store.name}</h2>
+          <h2 id={titleId} className="text-2xl font-extrabold">
+            Ticket de {store.name}
+          </h2>
           <p className="text-lg text-slate-600">
             {data.pending ? 'Venta sin conexión' : `Ticket #${data.number}`}
           </p>

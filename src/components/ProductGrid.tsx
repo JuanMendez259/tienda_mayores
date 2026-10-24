@@ -117,7 +117,7 @@ export function ProductGrid({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar producto por nombre o código..."
-              className="w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3.5 pl-13 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              className="w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3.5 pl-13 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
               aria-label="Buscar producto"
             />
           </div>
@@ -178,16 +178,17 @@ export function ProductGrid({
 
         {brands.length > 0 && (
           <div className="scrollbar-none flex items-center gap-2 overflow-x-auto pb-1">
-            <span className="shrink-0 text-xs font-black uppercase tracking-wider text-slate-400">
+            <span className="shrink-0 text-sm font-black uppercase tracking-wider text-slate-600">
               Marca
             </span>
             <button
               type="button"
               onClick={() => setBrand(null)}
+              aria-pressed={brand === null}
               className={
                 brand === null
-                  ? 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-700 bg-slate-800 px-3 py-1.5 text-sm font-extrabold text-white'
-                  : 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-200 bg-white px-3 py-1.5 text-sm font-extrabold text-slate-700 hover:bg-slate-100'
+                  ? 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-700 bg-slate-800 px-3 py-1.5 text-base font-extrabold text-white'
+                  : 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-200 bg-white px-3 py-1.5 text-base font-extrabold text-slate-700 hover:bg-slate-100'
               }
             >
               Todas
@@ -197,10 +198,11 @@ export function ProductGrid({
                 key={item}
                 type="button"
                 onClick={() => setBrand(item)}
+                aria-pressed={brand === item}
                 className={
                   brand === item
-                    ? 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-700 bg-slate-800 px-3 py-1.5 text-sm font-extrabold text-white'
-                    : 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-200 bg-white px-3 py-1.5 text-sm font-extrabold text-slate-700 hover:bg-slate-100'
+                    ? 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-700 bg-slate-800 px-3 py-1.5 text-base font-extrabold text-white'
+                    : 'flex min-h-14 shrink-0 items-center rounded-2xl border-2 border-slate-200 bg-white px-3 py-1.5 text-base font-extrabold text-slate-700 hover:bg-slate-100'
                 }
               >
                 {item}
@@ -246,11 +248,17 @@ export function ProductGrid({
                   <button
                     type="button"
                     onClick={() => onPick(product)}
-                    aria-label={`Agregar ${product.name}`}
+                    aria-label={`Agregar ${product.name}, ${formatMXN(product.price_cents)} ${
+                      product.sale_unit === 'piece'
+                        ? 'por pieza'
+                        : product.sale_unit === 'volume'
+                          ? 'por litro'
+                          : 'por kilo'
+                    }`}
                     className="absolute inset-0 z-10 rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200"
                   />
                   <span
-                    className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-xs font-extrabold uppercase tracking-wide text-white ${visual.badge}`}
+                    className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-sm font-extrabold uppercase tracking-wide text-white ${visual.badge}`}
                   >
                     {sizeLabel(product)}
                   </span>
@@ -270,7 +278,7 @@ export function ProductGrid({
                     <h3 className="line-clamp-2 text-xl font-extrabold leading-tight text-slate-900">
                       {product.name}
                     </h3>
-                    <p className="mb-2 text-sm font-bold text-slate-500">{subtitle}</p>
+                    <p className="mb-2 text-base font-semibold text-slate-600">{subtitle}</p>
                   </div>
                   <div className="flex items-center justify-between border-t border-slate-100 pt-2">
                     <span className="text-2xl font-black text-slate-900">

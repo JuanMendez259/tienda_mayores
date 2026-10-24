@@ -152,7 +152,11 @@ function App() {
 
   if (stage === 'loading') {
     return (
-      <div className="flex min-h-dvh items-center justify-center bg-slate-100 text-2xl font-bold">
+      <div
+        role="status"
+        aria-live="polite"
+        className="flex min-h-dvh items-center justify-center bg-slate-100 text-2xl font-bold"
+      >
         Cargando…
       </div>
     );
@@ -160,10 +164,20 @@ function App() {
 
   if (stage === 'error' || !store) {
     return (
-      <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-100 p-6 text-center">
+      <div
+        role="alert"
+        className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-slate-100 p-6 text-center"
+      >
         <span className="text-5xl">⚠️</span>
         <h1 className="title text-3xl">No se pudo iniciar</h1>
         <p className="text-xl text-slate-600">{error ?? 'Revisa la configuración.'}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="btn btn-primary px-8 py-4 text-xl text-white"
+        >
+          Reintentar
+        </button>
       </div>
     );
   }
@@ -171,7 +185,11 @@ function App() {
   return (
     <>
       {!online && (
-        <div className="bg-amber-400 px-4 py-2 text-center text-lg font-bold text-amber-950">
+        <div
+          role="status"
+          aria-live="polite"
+          className="bg-amber-400 px-4 py-2 text-center text-lg font-bold text-amber-950"
+        >
           Sin internet: tus ventas se guardarán y se enviarán después.
         </div>
       )}

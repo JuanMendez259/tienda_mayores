@@ -35,6 +35,7 @@ import { computeCutoffAlerts } from '../lib/cutoff';
 import { beep } from '../lib/sound';
 import { enqueueSale } from '../lib/offlineQueue';
 import { logError } from '../lib/errorLog';
+import { useModalA11y } from '../lib/useModalA11y';
 import { useBarcodeScanner } from '../devices/barcode';
 import { PAYMENT_METHOD_LABELS } from '../devices/payments';
 import { ProductGrid } from './ProductGrid';
@@ -48,6 +49,15 @@ import { DiscountModal } from './DiscountModal';
 import { HelpModal } from './HelpModal';
 import { InternalUseModal } from './InternalUseModal';
 import { ManagerAuthModal } from './ManagerAuthModal';
+
+/** Distingue un fallo de red de un rechazo de negocio al cobrar. */
+function isNetworkFailure(cause: unknown): boolean {
+  if (!(cause instanceof Error)) return false;
+  const message = cause.message.toLowerCase();
+  return /failed to fetch|failed to send a request|networkerror|network error|load failed|fetch failed|timeout|functionsfetcherror/.test(
+    message,
+  );
+}
 
 interface SaleScreenProps {
   store: Store;
@@ -83,10 +93,12 @@ export function SaleScreen({
   const [weightFor, setWeightFor] = useState<{ product: Product; key?: string } | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountAuthOpen, setDiscountAuthOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [orderDiscountCents, setOrderDiscountCents] = useState(0);
   const [ticket, setTicket] = useState<TicketData | null>(null);
   const [askCancel, setAskCancel] = useState(false);
+  const [askLogout, setAskLogout] = useState(false);
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [newBarcode, setNewBarcode] = useState('');
   const [held, setHeld] = useState<SaleWithItems[]>([]);
@@ -97,6 +109,7 @@ export function SaleScreen({
   /** En móvil/tablet se alterna catálogo/carrito; en lg se ven ambos a la vez. */
   const [view, setView] = useState<'catalog' | 'cart'>('catalog');
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customerBalances, setCustomerBalances] = useState<Record<string, number>>({});
   const [schedules, setSchedules] = useState<SupplierSchedule[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [bestSellers, setBestSellers] = useState<string[]>([]);
@@ -112,6 +125,7 @@ export function SaleScreen({
   } | null>(null);
   const [askSelfAuthorize, setAskSelfAuthorize] = useState(false);
   const [authOpen, setAuthOpen] = useState(false);
+  const heldPanelRef = useModalA11y(() => setHeldOpen(false), heldOpen);
 
   // Los descuentos por promoción se calculan al vuelo (F-407).
   const pricedCart = useMemo(() => applyAutoPromotions(cart, promotions), [cart, promotions]);
@@ -125,6 +139,8 @@ export function SaleScreen({
   const canManage = user.role !== 'cashier';
   const canUseInternalUse = canManage || store.internal_use_cashier_allowed;
   const allowCredit = canManage || store.credit_cashier_allowed;
+  const roleLabel =
+    user.role === 'owner' ? 'Dueño' : user.role === 'manager' ? 'Encargado' : 'Cajero';
   // Cuatro acciones fijas + Interno y Menú según permisos. Con 5 o 6 se usa
   // una cuadrícula de 3 columnas (dos filas); con 4, de 2 columnas.
   const headerActionCount = 4 + (canUseInternalUse ? 1 : 0) + (canManage ? 1 : 0);
@@ -166,6 +182,34 @@ export function SaleScreen({
     };
   }, [store.id]);
 
+  // Saldos de fiado al abrir el cobro, para mostrar "Debe" y "Límite" antes de autorizar.
+  useEffect(() => {
+    const activeCustomers = customers.filter((customer) => customer.active);
+    if (!paymentOpen || activeCustomers.length === 0) return;
+    let active = true;
+    void Promise.all(
+      activeCustomers.map(async (customer) => {
+        try {
+          const statement = await repository.getCustomerStatement(customer.id);
+          return [customer.id, statement.balance_cents] as const;
+        } catch (cause) {
+          logError(cause, 'customer-balance');
+          return [customer.id, null] as const;
+        }
+      }),
+    ).then((entries) => {
+      if (!active) return;
+      const balances: Record<string, number> = {};
+      for (const [id, balance] of entries) {
+        if (balance !== null) balances[id] = balance;
+      }
+      setCustomerBalances(balances);
+    });
+    return () => {
+      active = false;
+    };
+  }, [paymentOpen, customers]);
+
   // "Más vendidos" (F-A09): top de productos de los últimos 30 días.
   useEffect(() => {
     let active = true;
@@ -191,7 +235,18 @@ export function SaleScreen({
 
   // Escáner USB activo solo cuando no hay otro modal abierto (F-102).
   const scanningEnabled =
-    !paymentOpen && !weightFor && !productFormOpen && !discountOpen && !heldOpen && !helpOpen && !askCancel && !askSelfAuthorize && !authOpen && ticket === null;
+    !paymentOpen &&
+    !weightFor &&
+    !productFormOpen &&
+    !discountOpen &&
+    !discountAuthOpen &&
+    !heldOpen &&
+    !helpOpen &&
+    !askCancel &&
+    !askLogout &&
+    !askSelfAuthorize &&
+    !authOpen &&
+    ticket === null;
   useBarcodeScanner(handleScan, scanningEnabled);
 
   function mutate(next: CartItem[]) {
@@ -242,6 +297,16 @@ export function SaleScreen({
 
   function applyLineDiscount(key: string, cents: number) {
     mutate(setLineDiscount(cart, key, cents));
+  }
+
+  /** El descuento manual puede requerir autorización de dueño o encargado. */
+  function requestDiscount() {
+    if (cart.length === 0) return;
+    if (store.discount_requires_manager && !canManage) {
+      setDiscountAuthOpen(true);
+      return;
+    }
+    setDiscountOpen(true);
   }
 
   function cartItemFromSaleLine(item: SaleItem): CartItem | null {
@@ -382,11 +447,14 @@ export function SaleScreen({
       const customer = customers.find((entry) => entry.id === customerId) ?? null;
       const limit = customer?.credit_limit_cents ?? null;
       if (limit !== null) {
-        let balance = 0;
-        try {
-          balance = (await repository.getCustomerStatement(customerId)).balance_cents;
-        } catch (cause) {
-          logError(cause, 'credit-limit');
+        let balance = customerBalances[customerId];
+        if (balance === undefined) {
+          try {
+            balance = (await repository.getCustomerStatement(customerId)).balance_cents;
+          } catch (cause) {
+            logError(cause, 'credit-limit');
+            balance = 0;
+          }
         }
         const projected = balance + creditCents;
         if (projected > limit) {
@@ -443,26 +511,41 @@ export function SaleScreen({
       credit_override: override || undefined,
     };
 
-    // Sin conexión: guardar la venta y enviarla al reconectar (F-704 / sección 9).
-    if (isRemoteConfigured && !navigator.onLine) {
-      await enqueueSale(input);
-      setBusy(false);
-      finishSale(ticketFor(total, received, 0, paymentsLabel, true));
-      setMessage('Venta guardada sin conexión; se enviará al reconectar.');
-      return;
-    }
-
     try {
+      // Sin conexión: guardar la venta y enviarla al reconectar (F-704 / sección 9).
+      if (isRemoteConfigured && !navigator.onLine) {
+        await enqueueSale(input);
+        finishSale(ticketFor(total, received, 0, paymentsLabel, true));
+        setMessage('Venta guardada sin conexión; se enviará al reconectar.');
+        return;
+      }
+
       const result = await repository.checkout(input);
-      setBusy(false);
       finishSale({
         ...ticketFor(total, received, result.sale.number, paymentsLabel),
         dateIso: result.sale.paid_at ?? result.sale.created_at,
       });
     } catch (cause) {
-      setBusy(false);
       logError(cause, 'checkout');
-      setMessage('No se pudo cobrar. Revisa la conexión e inténtalo de nuevo.');
+
+      // La red pudo caer después de que `navigator.onLine` dijera "en línea".
+      // Guardamos la venta para no perder el cobro; el backend deduplica por uuid.
+      if (isRemoteConfigured && isNetworkFailure(cause)) {
+        try {
+          await enqueueSale(input);
+          finishSale(ticketFor(total, received, 0, paymentsLabel, true));
+          setMessage('No se pudo conectar. Venta guardada; se enviará al reconectar.');
+          return;
+        } catch (queueCause) {
+          logError(queueCause, 'checkout-queue');
+        }
+      }
+
+      // Errores de negocio: se cierra el cobro y el ticket queda intacto para reintentar.
+      setPaymentOpen(false);
+      setMessage('No se pudo cobrar. El ticket sigue listo; inténtalo de nuevo.');
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -482,8 +565,8 @@ export function SaleScreen({
             <div className="min-w-0">
               <h1 className="flex min-w-0 items-center gap-2 text-xl font-black leading-none tracking-tight text-slate-900 xl:text-2xl">
                 <span className="truncate">{store.name}</span>
-                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-extrabold uppercase tracking-wider text-emerald-800">
-                  Modo Fácil
+                <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-extrabold uppercase tracking-wider text-emerald-800">
+                  {roleLabel}
                 </span>
               </h1>
               <p className="mt-1 flex flex-wrap items-center gap-2 text-base font-bold text-slate-600">
@@ -495,7 +578,7 @@ export function SaleScreen({
                   <span className="text-sm" aria-hidden="true">
                     💰
                   </span>{" "}
-                  En caja:{" "}
+                  Fondo de caja:{" "}
                   <strong className="text-lg text-emerald-700">
                     {formatMXN(cashSession.opening_cents)}
                   </strong>
@@ -534,7 +617,7 @@ export function SaleScreen({
             </button>
             <button
               type="button"
-              onClick={onLogout}
+              onClick={() => setAskLogout(true)}
               className="flex min-h-14 w-full items-center justify-center gap-2 rounded-xl border-2 border-red-200 bg-red-50 px-2 py-2 text-base font-black text-red-700 shadow-sm transition hover:bg-red-100 active:scale-95"
             >
               <span className="text-xl xl:text-2xl" aria-hidden="true">
@@ -634,12 +717,12 @@ export function SaleScreen({
                 <h2 className="whitespace-nowrap text-base font-black leading-tight text-slate-900 lg:text-lg xl:text-xl">
                   Ticket de Venta
                 </h2>
-                <p className="whitespace-nowrap text-xs font-bold text-slate-500 lg:text-sm">
-                  Mostrador Principal
+                <p className="whitespace-nowrap text-sm font-bold text-slate-600">
+                  Caja 1
                 </p>
               </div>
             </div>
-            <span className="shrink-0 whitespace-nowrap rounded-xl border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-xs font-black text-emerald-800 lg:px-3 lg:text-sm xl:text-base">
+            <span className="shrink-0 whitespace-nowrap rounded-xl border border-emerald-200 bg-emerald-100 px-2.5 py-1 text-sm font-black text-emerald-800 lg:px-3 lg:text-base">
               {count} producto{count === 1 ? '' : 's'}
             </span>
           </div>
@@ -657,14 +740,14 @@ export function SaleScreen({
 
           <div className="flex-none space-y-2 border-t-2 border-slate-200 bg-slate-50 p-3">
             {promoDiscount > 0 && (
-              <div className="flex items-center justify-between text-sm font-bold text-emerald-700">
+              <div className="flex items-center justify-between text-base font-bold text-emerald-700">
                 <span>🏷️ Promociones</span>
                 <span>−{formatMXN(promoDiscount)}</span>
               </div>
             )}
 
             {discountTotal > 0 && (
-              <div className="flex items-center justify-between text-sm font-bold text-emerald-700">
+              <div className="flex items-center justify-between text-base font-bold text-emerald-700">
                 <span>Subtotal {formatMXN(subtotal)} · Descuento</span>
                 <span>−{formatMXN(discountTotal)}</span>
               </div>
@@ -675,12 +758,12 @@ export function SaleScreen({
               {store.modules.discounts && (
                 <button
                   type="button"
-                  onClick={() => setDiscountOpen(true)}
+                  onClick={requestDiscount}
                   disabled={cart.length === 0}
-                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-xs font-extrabold transition active:scale-95 xl:px-2 lg:text-sm ${
+                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-base font-extrabold leading-tight transition active:scale-95 xl:px-2 ${
                     cart.length === 0
                       ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                      : 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                      : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
                   }`}
                 >
                   <span className="text-lg" aria-hidden="true">
@@ -693,10 +776,10 @@ export function SaleScreen({
                 type="button"
                 onClick={undo}
                 disabled={history.length === 0}
-                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-xs font-extrabold transition active:scale-95 xl:px-2 lg:text-sm ${
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-base font-extrabold leading-tight transition active:scale-95 xl:px-2 ${
                   history.length === 0
                     ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
-                    : 'border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100'
+                    : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
                 }`}
               >
                 <span className="text-lg" aria-hidden="true">
@@ -708,7 +791,7 @@ export function SaleScreen({
                 type="button"
                 onClick={() => setAskCancel(true)}
                 disabled={cart.length === 0}
-                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-xs font-extrabold transition active:scale-95 xl:px-2 lg:text-sm ${
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-base font-extrabold leading-tight transition active:scale-95 xl:px-2 ${
                   cart.length === 0
                     ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                     : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
@@ -723,7 +806,7 @@ export function SaleScreen({
 
             <div className="flex flex-wrap items-baseline justify-between gap-1 rounded-2xl border-2 border-slate-200 bg-white p-3 shadow-xs">
               <div>
-                <span className="block text-xs font-black uppercase tracking-widest text-slate-500">
+                <span className="block text-base font-black uppercase tracking-wider text-slate-600">
                   Total a Pagar
                 </span>
                 <span className="text-sm font-bold text-slate-600">IVA incluido</span>
@@ -732,7 +815,7 @@ export function SaleScreen({
                 <span className="text-3xl font-black tracking-tight text-slate-900 xl:text-4xl">
                   {formatMXN(total)}
                 </span>
-                <span className="ml-1 text-xs font-black text-slate-500">MXN</span>
+                <span className="ml-1 text-sm font-black text-slate-500">MXN</span>
               </div>
             </div>
 
@@ -774,7 +857,12 @@ export function SaleScreen({
       </nav>
 
       {message && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 rounded-2xl bg-slate-900 px-6 py-3 text-xl font-bold text-white shadow-lg lg:bottom-6">
+        <div
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 rounded-2xl bg-slate-900 px-6 py-3 text-xl font-bold text-white shadow-lg lg:bottom-6"
+        >
           {message}
         </div>
       )}
@@ -793,6 +881,7 @@ export function SaleScreen({
         <PaymentModal
           totalCents={total}
           customers={customers}
+          customerBalances={customerBalances}
           allowCredit={allowCredit}
           onCancel={() => setPaymentOpen(false)}
           onConfirm={checkout}
@@ -823,6 +912,18 @@ export function SaleScreen({
         />
       )}
 
+      {discountAuthOpen && (
+        <ManagerAuthModal
+          message="El descuento manual requiere autorización de dueño o encargado."
+          users={users}
+          onAuthorized={() => {
+            setDiscountAuthOpen(false);
+            setDiscountOpen(true);
+          }}
+          onCancel={() => setDiscountAuthOpen(false)}
+        />
+      )}
+
       <TicketModal open={ticket !== null} store={store} data={ticket} onNewSale={() => setTicket(null)} />
 
       {productFormOpen && (
@@ -846,8 +947,17 @@ export function SaleScreen({
 
       {heldOpen && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/60 p-4">
-          <div className="card max-h-[92dvh] w-full max-w-2xl overflow-y-auto p-6" role="dialog" aria-modal="true">
-            <h2 className="title mb-2 text-3xl">Ventas en espera</h2>
+          <div
+            ref={heldPanelRef}
+            tabIndex={-1}
+            className="card max-h-[92dvh] w-full max-w-2xl overflow-y-auto p-6"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="held-sales-title"
+          >
+            <h2 id="held-sales-title" className="title mb-2 text-3xl">
+              Ventas en espera
+            </h2>
             <p className="mb-4 text-base text-slate-500">
               Guarda la venta actual o retoma una venta anterior.
             </p>
@@ -896,6 +1006,23 @@ export function SaleScreen({
       )}
 
       <ConfirmDialog
+        open={askLogout}
+        title="¿Cerrar sesión?"
+        message={
+          cart.length > 0
+            ? `Hay ${count} producto${count === 1 ? '' : 's'} en el ticket. Si sales ahora, se perderá la venta en curso.`
+            : 'Tendrás que elegir usuario y PIN para volver a entrar.'
+        }
+        confirmLabel="Sí, salir"
+        cancelLabel="Seguir vendiendo"
+        onConfirm={() => {
+          setAskLogout(false);
+          onLogout();
+        }}
+        onCancel={() => setAskLogout(false)}
+      />
+
+      <ConfirmDialog
         open={askCancel}
         title="¿Seguro que quieres cancelar esta venta?"
         message="Se quitarán todos los productos de la venta."
@@ -930,6 +1057,7 @@ export function SaleScreen({
         <ManagerAuthModal
           message={`${creditOverride.name} llegaría a ${formatMXN(creditOverride.projected)} y su límite es ${formatMXN(creditOverride.limit)}.`}
           users={users}
+          cancelLabel="Cancelar venta"
           onAuthorized={authorizeCredit}
           onCancel={() => {
             setAuthOpen(false);

@@ -1,4 +1,6 @@
+import { useId } from 'react';
 import type { ReactNode } from 'react';
+import { useModalA11y } from '../lib/useModalA11y';
 
 interface ConfirmDialogProps {
   open: boolean;
@@ -20,12 +22,30 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const titleId = useId();
+  const messageId = useId();
+  const panelRef = useModalA11y(onCancel, open);
+
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4">
-      <div className="card w-full max-w-xl p-6" role="alertdialog" aria-modal="true">
-        <h2 className="title mb-2 text-slate-900">{title}</h2>
-        {message && <div className="mb-6 text-lg text-slate-700">{message}</div>}
+      <div
+        ref={panelRef}
+        tabIndex={-1}
+        className="card w-full max-w-xl p-6"
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={message ? messageId : undefined}
+      >
+        <h2 id={titleId} className="title mb-2 text-slate-900">
+          {title}
+        </h2>
+        {message && (
+          <div id={messageId} className="mb-6 text-lg text-slate-700">
+            {message}
+          </div>
+        )}
         <div className="flex gap-3">
           <button type="button" onClick={onCancel} className="btn btn-neutral flex-1 py-4 text-xl">
             {cancelLabel}
