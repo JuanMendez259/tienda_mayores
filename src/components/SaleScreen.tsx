@@ -23,6 +23,8 @@ import {
   cartSubtotalCents,
   cartTotalCents,
   changeQty,
+  measureFromProduct,
+  pieceFromProduct,
   removeItem,
   setLineDiscount,
   setMeasure,
@@ -31,6 +33,7 @@ import {
 import { changeDue, formatMXN } from '../lib/money';
 import { formatMeasure } from '../lib/weight';
 import { uid } from '../lib/uid';
+import { loadFavorites, toggleFavorite } from '../lib/favorites';
 import { computeCutoffAlerts } from '../lib/cutoff';
 import { beep } from '../lib/sound';
 import { enqueueSale } from '../lib/offlineQueue';
@@ -76,6 +79,12 @@ interface SaleScreenProps {
   onLogout: () => void;
 }
 
+/** Renglones de la última venta cobrada, para repetirla con precios de hoy. */
+interface LastSale {
+  at: string;
+  items: { productId: string; qty: number; measure: number | null }[];
+}
+
 export function SaleScreen({
   store,
   user,
@@ -114,6 +123,8 @@ export function SaleScreen({
   const [schedules, setSchedules] = useState<SupplierSchedule[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [bestSellers, setBestSellers] = useState<string[]>([]);
+  const [favorites, setFavorites] = useState<string[]>(() => loadFavorites(store.id));
+  const [lastSale, setLastSale] = useState<LastSale | null>(null);
   const [internalUseOpen, setInternalUseOpen] = useState(false);
   // Autorización de fiado sobre el límite (F-B06).
   const [creditOverride, setCreditOverride] = useState<{
@@ -283,6 +294,48 @@ export function SaleScreen({
     beep(880, 70);
   }
 
+  /** Marca o desmarca un producto; la preferencia vive en esta caja. */
+  function markFavorite(productId: string) {
+    setFavorites(toggleFavorite(store.id, productId));
+  }
+
+  /**
+   * Repite la última venta con los precios de hoy. Omite agotados y no arrastra
+   * descuentos manuales ni cliente de fiado: se revisa y se cobra de nuevo.
+   */
+  function repeatLastSale() {
+    if (!lastSale) return;
+    const next: CartItem[] = [];
+    let skipped = 0;
+    for (const line of lastSale.items) {
+      const product = products.find((item) => item.id === line.productId);
+      if (!product || (product.track_stock && product.stock_qty <= 0)) {
+        skipped += 1;
+        continue;
+      }
+      if (product.sale_unit === 'piece') {
+        next.push(pieceFromProduct(product, line.qty));
+      } else if ((line.measure ?? 0) > 0) {
+        next.push(measureFromProduct(product, line.measure ?? 0));
+      } else {
+        skipped += 1;
+      }
+    }
+    if (next.length === 0) {
+      setMessage('No se puede repetir: los productos están agotados.');
+      return;
+    }
+    setCart(next);
+    setHistory([]);
+    setOrderDiscountCents(0);
+    setView('cart');
+    setMessage(
+      skipped > 0
+        ? `Venta repetida sin ${skipped} producto(s) agotado(s). Revisa y cobra.`
+        : 'Venta repetida. Revisa y cobra.',
+    );
+  }
+
   /** Escáner USB (F-102): agrega el producto o abre el alta con el código. */
   function handleScan(code: string) {
     const product = products.find((item) => item.barcode === code);
@@ -389,6 +442,16 @@ export function SaleScreen({
   }
 
   function finishSale(data: TicketData) {
+    if (cart.length > 0) {
+      setLastSale({
+        at: new Date().toISOString(),
+        items: cart.map((item) => ({
+          productId: item.productId,
+          qty: item.qty,
+          measure: item.measure,
+        })),
+      });
+    }
     setTicket(data);
     setPaymentOpen(false);
     setCart([]);
@@ -727,6 +790,8 @@ export function SaleScreen({
             products={products}
             categories={categories}
             bestSellers={bestSellers}
+            favorites={favorites}
+            onToggleFavorite={markFavorite}
             onPick={pick}
             onNewProduct={() => {
               setNewBarcode('');
@@ -770,6 +835,25 @@ export function SaleScreen({
               if (product) setWeightFor({ product, key: item.key });
             }}
           />
+
+          {cart.length === 0 && lastSale && (
+            <div className="flex-none border-t-2 border-slate-200 bg-white px-3 py-2">
+              <button
+                type="button"
+                onClick={repeatLastSale}
+                className="btn btn-neutral w-full justify-center gap-2 py-3 text-lg"
+              >
+                <span aria-hidden="true">🔁</span> Repetir última venta
+              </button>
+              <p className="mt-1 text-center text-sm font-semibold text-slate-600">
+                {lastSale.items.length} producto{lastSale.items.length === 1 ? '' : 's'} ·{' '}
+                {new Date(lastSale.at).toLocaleTimeString('es-MX', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
+          )}
 
           <div className="flex-none space-y-2 border-t-2 border-slate-200 bg-slate-50 p-3">
             {promoDiscount > 0 && (
@@ -1022,7 +1106,16 @@ export function SaleScreen({
         />
       )}
 
-      <TicketModal open={ticket !== null} store={store} data={ticket} onNewSale={() => setTicket(null)} />
+      <TicketModal
+        open={ticket !== null}
+        store={store}
+        data={ticket}
+        onNewSale={() => setTicket(null)}
+        onRepeatSale={() => {
+          setTicket(null);
+          repeatLastSale();
+        }}
+      />
 
       {productFormOpen && (
         <ProductFormModal

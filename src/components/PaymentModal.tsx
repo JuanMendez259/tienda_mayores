@@ -137,6 +137,15 @@ export function PaymentModal({
     setAmount('');
   }
 
+  /** Cobra el resto en efectivo sin capturar: el cliente dio el importe exacto. */
+  function chargeExactCash() {
+    if (remaining <= 0) return;
+    finish([
+      ...entries,
+      { method: 'cash', appliedCents: remaining, reference: null, receivedCents: remaining },
+    ]);
+  }
+
   async function addDigital() {
     if (remaining === 0 || busy) return;
     setBusy(true);
@@ -304,15 +313,15 @@ export function PaymentModal({
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    onClick={() => setAmount((remaining / 100).toFixed(2))}
-                    className="btn border-2 border-amber-300 bg-amber-100 px-2 py-2 text-base text-amber-900 hover:bg-amber-200"
+                    onClick={chargeExactCash}
+                    className="btn min-h-14 border-2 border-emerald-800 bg-emerald-600 px-2 py-2 text-base font-black text-white hover:bg-emerald-700"
                   >
-                    🎯 Exacto
+                    💵 Cobrar exacto
                   </button>
                   <button
                     type="button"
                     onClick={() => setAmount('')}
-                    className="btn btn-neutral px-2 py-2 text-base"
+                    className="btn btn-neutral min-h-14 px-2 py-2 text-base"
                   >
                     🧹 Borrar
                   </button>

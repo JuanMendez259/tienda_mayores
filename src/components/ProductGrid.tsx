@@ -11,6 +11,9 @@ interface ProductGridProps {
   categories: Category[];
   /** Ids de los productos más vendidos, en orden (F-A09). */
   bestSellers?: string[];
+  /** Ids marcados como favoritos en esta caja. */
+  favorites?: string[];
+  onToggleFavorite?: (productId: string) => void;
   onPick: (product: Product) => void;
   onNewProduct: () => void;
 }
@@ -63,6 +66,8 @@ export function ProductGrid({
   products,
   categories,
   bestSellers = [],
+  favorites = [],
+  onToggleFavorite,
   onPick,
   onNewProduct,
 }: ProductGridProps) {
@@ -70,20 +75,27 @@ export function ProductGrid({
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [brand, setBrand] = useState<string | null>(null);
   const [bestOnly, setBestOnly] = useState(false);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [showAllCategories, setShowAllCategories] = useState(false);
   const [brandPanelOpen, setBrandPanelOpen] = useState(false);
 
+  const favoriteSet = useMemo(() => new Set(favorites), [favorites]);
   const categoryById = useMemo(() => new Map(categories.map((item) => [item.id, item])), [categories]);
   const visibleCategories = showAllCategories ? categories : categories.slice(0, CATEGORY_LIMIT);
   const hiddenCategoryCount = categories.length - visibleCategories.length;
   const activeFilterCount =
-    (query.trim() ? 1 : 0) + (categoryId ? 1 : 0) + (brand ? 1 : 0) + (bestOnly ? 1 : 0);
+    (query.trim() ? 1 : 0) +
+    (categoryId ? 1 : 0) +
+    (brand ? 1 : 0) +
+    (bestOnly ? 1 : 0) +
+    (favoritesOnly ? 1 : 0);
 
   function clearFilters() {
     setQuery('');
     setCategoryId(null);
     setBrand(null);
     setBestOnly(false);
+    setFavoritesOnly(false);
     setBrandPanelOpen(false);
   }
 
@@ -110,13 +122,14 @@ export function ProductGrid({
         : true;
       const matchesBrand = brand ? product.brand === brand : true;
       const matchesBest = bestOnly ? bestRank.has(product.id) : true;
-      return matchesCategory && matchesText && matchesBrand && matchesBest;
+      const matchesFavorite = favoritesOnly ? favoriteSet.has(product.id) : true;
+      return matchesCategory && matchesText && matchesBrand && matchesBest && matchesFavorite;
     });
     if (bestOnly) {
       list.sort((a, b) => (bestRank.get(a.id) ?? 0) - (bestRank.get(b.id) ?? 0));
     }
     return list;
-  }, [products, query, categoryId, brand, bestOnly, bestRank]);
+  }, [products, query, categoryId, brand, bestOnly, favoritesOnly, bestRank, favoriteSet]);
 
   const inactiveChip =
     'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-base font-extrabold text-slate-800 shadow-xs transition hover:bg-slate-100 active:scale-95';
@@ -154,12 +167,13 @@ export function ProductGrid({
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
-            aria-pressed={categoryId === null && !bestOnly}
+            aria-pressed={categoryId === null && !bestOnly && !favoritesOnly}
             onClick={() => {
               setCategoryId(null);
               setBestOnly(false);
+              setFavoritesOnly(false);
             }}
-            className={categoryId === null && !bestOnly ? activeChip : inactiveChip}
+            className={categoryId === null && !bestOnly && !favoritesOnly ? activeChip : inactiveChip}
           >
             <span aria-hidden="true">✨</span> Todo
           </button>
@@ -169,6 +183,7 @@ export function ProductGrid({
             onClick={() => {
               setBestOnly(true);
               setCategoryId(null);
+              setFavoritesOnly(false);
             }}
             className={
               bestOnly
@@ -178,6 +193,25 @@ export function ProductGrid({
           >
             <span aria-hidden="true">🔥</span> Más vendidos
           </button>
+          {onToggleFavorite && (
+            <button
+              type="button"
+              aria-pressed={favoritesOnly}
+              onClick={() => {
+                setFavoritesOnly(true);
+                setCategoryId(null);
+                setBestOnly(false);
+              }}
+              className={
+                favoritesOnly
+                  ? 'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-amber-500 bg-amber-300 px-4 py-2.5 text-base font-black text-amber-950 shadow-sm transition active:scale-95'
+                  : inactiveChip
+              }
+            >
+              <span aria-hidden="true">⭐</span> Favoritos
+              {favorites.length > 0 && <span>({favorites.length})</span>}
+            </button>
+          )}
           {visibleCategories.map((category) => (
             <button
               key={category.id}
@@ -186,6 +220,7 @@ export function ProductGrid({
               onClick={() => {
                 setCategoryId(category.id);
                 setBestOnly(false);
+                setFavoritesOnly(false);
               }}
               className={categoryId === category.id ? activeChip : inactiveChip}
             >
@@ -358,6 +393,32 @@ export function ProductGrid({
                       soldOut ? 'cursor-not-allowed' : ''
                     }`}
                   />
+                  {onToggleFavorite && (
+                    <button
+                      type="button"
+                      onClick={() => onToggleFavorite(product.id)}
+                      aria-pressed={favoriteSet.has(product.id)}
+                      aria-label={
+                        favoriteSet.has(product.id)
+                          ? `Quitar ${product.name} de favoritos`
+                          : `Agregar ${product.name} a favoritos`
+                      }
+                      title={
+                        favoriteSet.has(product.id)
+                          ? 'Quitar de favoritos'
+                          : 'Marcar como favorito'
+                      }
+                      className={`absolute left-2 top-2 z-20 flex h-14 w-14 items-center justify-center rounded-2xl border-2 text-3xl leading-none shadow-sm transition active:scale-95 ${
+                        favoriteSet.has(product.id)
+                          ? 'border-amber-500 bg-amber-300 text-amber-950'
+                          : 'border-slate-200 bg-white/95 text-slate-500 hover:bg-amber-50'
+                      }`}
+                    >
+                      <span aria-hidden="true">
+                        {favoriteSet.has(product.id) ? '★' : '☆'}
+                      </span>
+                    </button>
+                  )}
                   <span
                     className={`absolute right-3 top-3 rounded-full px-2.5 py-1 text-sm font-extrabold uppercase tracking-wide text-white ${visual.badge}`}
                   >

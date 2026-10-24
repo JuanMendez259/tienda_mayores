@@ -39,6 +39,18 @@ describe('render de pantallas (smoke)', () => {
     expect(html).toContain(seedStore.name);
   });
 
+  it('muestra el bloqueo de PIN en la tarjeta del usuario', () => {
+    const lockedUntil = new Date(Date.now() + 4 * 60_000).toISOString();
+    const html = renderToStaticMarkup(
+      <LoginScreen
+        store={seedStore}
+        users={[{ ...seedUsers[0], locked_until: lockedUntil }]}
+        onLogin={noop}
+      />,
+    );
+    expect(html).toContain('Bloqueado');
+  });
+
   it('renderiza la apertura de caja', () => {
     const html = renderToStaticMarkup(
       <OpenCashScreen store={seedStore} user={seedUsers[0]} onOpened={noop} />,
@@ -101,6 +113,23 @@ describe('render de pantallas (smoke)', () => {
     expect(low).toContain('Marca:');
   });
 
+  it('marca favoritos con estrella y filtro propio', () => {
+    const html = renderToStaticMarkup(
+      <ProductGrid
+        products={seedProducts.slice(0, 2)}
+        categories={seedCategories}
+        favorites={[seedProducts[0].id]}
+        onToggleFavorite={noop}
+        onPick={noop}
+        onNewProduct={noop}
+      />,
+    );
+    expect(html).toContain('Favoritos');
+    expect(html).toContain('★');
+    expect(html).toContain('Quitar Jitomate de favoritos');
+    expect(html).toContain('Agregar Papa a favoritos');
+  });
+
   it('renderiza los modales de cobro, peso, ticket, caja y producto', () => {
     const payment = renderToStaticMarkup(
       <PaymentModal totalCents={10013} onCancel={noop} onConfirm={noop} />,
@@ -108,6 +137,7 @@ describe('render de pantallas (smoke)', () => {
     expect(payment).toContain('Cobrar');
     expect(payment).toContain('Falta');
     expect(payment).not.toContain('Cambio');
+    expect(payment).toContain('Cobrar exacto');
     expect(
       renderToStaticMarkup(<PaymentModal totalCents={0} onCancel={noop} onConfirm={noop} />),
     ).toContain('Cobrar sin pago');
@@ -131,9 +161,29 @@ describe('render de pantallas (smoke)', () => {
             changeCents: 3600,
           }}
           onNewSale={noop}
+          onRepeatSale={noop}
         />,
       ),
     ).toContain('Ticket #1');
+    expect(
+      renderToStaticMarkup(
+        <TicketModal
+          open
+          store={seedStore}
+          data={{
+            number: 2,
+            dateIso: '2026-01-01T10:00:00Z',
+            lines: [{ name: 'Arroz 1 kg', detail: '2 × $32.00', importeCents: 6400 }],
+            subtotalCents: 6400,
+            totalCents: 6400,
+            receivedCents: 6400,
+            changeCents: 0,
+          }}
+          onNewSale={noop}
+          onRepeatSale={noop}
+        />,
+      ),
+    ).toContain('Repetir venta');
     expect(
       renderToStaticMarkup(<CashPanel session={session} onClose={noop} onClosed={noop} />),
     ).toContain('Contar el efectivo');

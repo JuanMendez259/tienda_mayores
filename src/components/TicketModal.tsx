@@ -33,10 +33,12 @@ interface TicketModalProps {
   store: Store;
   data: TicketData | null;
   onNewSale: () => void;
+  /** Vuelve a cargar los mismos productos con los precios de hoy. */
+  onRepeatSale?: () => void;
 }
 
 /** Ticket en pantalla al cobrar (F-303) con impresión (F-301) y WhatsApp (F-302). */
-export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) {
+export function TicketModal({ open, store, data, onNewSale, onRepeatSale }: TicketModalProps) {
   const [phone, setPhone] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
   const titleId = useId();
@@ -183,7 +185,22 @@ export function TicketModal({ open, store, data, onNewSale }: TicketModalProps) 
           )}
         </div>
 
-        <button type="button" onClick={onNewSale} className="btn btn-primary mt-6 w-full py-5 text-2xl text-white">
+        {onRepeatSale && (
+          <button
+            type="button"
+            onClick={onRepeatSale}
+            className="btn btn-neutral mt-6 w-full py-4 text-xl"
+          >
+            🔁 Repetir venta
+          </button>
+        )}
+        {onRepeatSale && (
+          <p className="mt-1 text-center text-base text-slate-600">
+            Mismos productos, con los precios de hoy.
+          </p>
+        )}
+
+        <button type="button" onClick={onNewSale} className="btn btn-primary mt-4 w-full py-5 text-2xl text-white">
           Nueva venta
         </button>
       </div>

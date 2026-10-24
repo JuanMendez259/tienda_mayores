@@ -32,6 +32,7 @@ import type {
   SupplierVisit,
 } from '../types/database';
 import { uid } from '../lib/uid';
+import { MAX_PIN_ATTEMPTS, PIN_LOCK_MS } from '../lib/auth';
 import type {
   CashSummary,
   CheckoutInput,
@@ -248,8 +249,8 @@ function createLocalRepository(): Repository {
       return true;
     }
     user.failed_attempts += 1;
-    if (user.failed_attempts >= 5) {
-      user.locked_until = new Date(Date.now() + 5 * 60 * 1000).toISOString();
+    if (user.failed_attempts >= MAX_PIN_ATTEMPTS) {
+      user.locked_until = new Date(Date.now() + PIN_LOCK_MS).toISOString();
       user.failed_attempts = 0;
     }
     return false;

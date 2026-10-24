@@ -23,6 +23,40 @@ const GUIDES: Guide[] = [
       'Usa los botones + y − para cambiar cantidades.',
       'Si hay una promoción, se aplica sola. Para un descuento manual toca “Descuento”; puede pedir autorización.',
       'Toca el botón verde “Cobrar”, elige efectivo, Clip, Mercado Pago o fiado y confirma.',
+      'Si el cliente paga el importe exacto, usa “💵 Cobrar exacto”: la venta se cierra en un toque.',
+    ],
+  },
+  {
+    id: 'favoritos',
+    icon: '⭐',
+    title: 'Favoritos del mostrador',
+    steps: [
+      'En la tarjeta del producto toca la estrella ☆ para marcarlo.',
+      'La estrella se guarda en esta caja, no en la nube.',
+      'Toca el filtro “⭐ Favoritos” para ver solo los productos marcados.',
+      'Para quitar uno, vuelve a tocar su estrella ★.',
+    ],
+  },
+  {
+    id: 'repetir',
+    icon: '🔁',
+    title: 'Repetir una venta',
+    steps: [
+      'Al terminar el cobro, toca “🔁 Repetir venta” en el ticket.',
+      'Con el carrito vacío, usa “Repetir última venta” arriba del total.',
+      'Se cargan los mismos productos con los precios de hoy.',
+      'Los agotados se omiten y los descuentos manuales no se arrastran: revisa y cobra.',
+    ],
+  },
+  {
+    id: 'acceso',
+    icon: '🔒',
+    title: 'Entrar con PIN',
+    steps: [
+      'Toca tu nombre y escribe tu PIN de 4 números.',
+      'Si fallas, la pantalla te dice cuántos intentos te quedan.',
+      'Tras 5 fallos el acceso se bloquea 5 minutos y verás la cuenta regresiva.',
+      'Si no recuerdas tu PIN, avisa al encargado para que te ayude.',
     ],
   },
   {
