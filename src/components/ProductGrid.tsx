@@ -138,8 +138,8 @@ export function ProductGrid({
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-3 border-b border-slate-200 bg-white p-4 shadow-xs">
-        <div className="flex items-center gap-3">
+      <div className="space-y-2 border-b border-slate-200 bg-white p-3 shadow-xs md:space-y-3 md:p-4">
+        <div className="flex items-center gap-2 md:gap-3">
           <div className="relative flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-2xl text-slate-400">
               🔍
@@ -148,14 +148,14 @@ export function ProductGrid({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Buscar producto por nombre o código..."
-              className="w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3.5 pl-13 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100"
+              className="w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3 pl-13 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100 md:py-3.5"
               aria-label="Buscar producto"
             />
           </div>
           <button
             type="button"
             onClick={onNewProduct}
-            className="flex items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-amber-600 bg-amber-500 px-5 py-3.5 text-lg font-black text-slate-950 shadow-sm transition hover:bg-amber-600 active:scale-95"
+            className="flex min-h-14 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-amber-600 bg-amber-500 px-3 py-2 text-lg font-black text-slate-950 shadow-sm transition hover:bg-amber-600 active:scale-95 md:px-5 md:py-3.5"
           >
             <span className="text-2xl leading-none">➕</span>
             <span className="hidden sm:inline">Nuevo / Manual</span>
@@ -163,8 +163,13 @@ export function ProductGrid({
           </button>
         </div>
 
-        {/* Chips en filas visibles: nada queda escondido en un carrusel. */}
-        <div className="flex flex-wrap items-center gap-2">
+        {/* En teléfono se muestran los accesos rápidos y "Ver N más"; al
+            desplegar, todas las categorías quedan en filas visibles. */}
+        <div
+          role="group"
+          aria-label="Filtros y categorías"
+          className="flex flex-wrap items-center gap-2"
+        >
           <button
             type="button"
             aria-pressed={categoryId === null && !bestOnly && !favoritesOnly}
@@ -222,7 +227,9 @@ export function ProductGrid({
                 setBestOnly(false);
                 setFavoritesOnly(false);
               }}
-              className={categoryId === category.id ? activeChip : inactiveChip}
+              className={`${categoryId === category.id ? activeChip : inactiveChip} ${
+                showAllCategories ? '' : 'hidden md:flex'
+              }`}
             >
               <span aria-hidden="true">
                 {emojiFromIcon(category.image_url) ?? visualFor(category.name).emoji}
@@ -230,12 +237,23 @@ export function ProductGrid({
               {category.name}
             </button>
           ))}
+          {/* En teléfono las categorías se despliegan con un botón rotulado;
+              en tablet caben hasta 6 y el botón solo aparece si hay más. */}
+          <button
+            type="button"
+            aria-expanded={showAllCategories}
+            onClick={() => setShowAllCategories((value) => !value)}
+            className={`${inactiveChip} md:hidden`}
+          >
+            <span aria-hidden="true">📂</span>
+            {showAllCategories ? 'Ver menos' : `Ver ${categories.length} más`}
+          </button>
           {categories.length > CATEGORY_LIMIT && (
             <button
               type="button"
               aria-expanded={showAllCategories}
               onClick={() => setShowAllCategories((value) => !value)}
-              className={inactiveChip}
+              className={`${inactiveChip} hidden md:flex`}
             >
               <span aria-hidden="true">📂</span>
               {showAllCategories ? 'Ver menos' : `Ver ${hiddenCategoryCount} más`}
@@ -327,7 +345,7 @@ export function ProductGrid({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-4">
         {filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
             <span className="text-6xl">🔎</span>
@@ -339,7 +357,7 @@ export function ProductGrid({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 md:gap-3.5 lg:grid-cols-3">
             {filtered.map((product) => {
               const category = product.category_id ? categoryById.get(product.category_id) : undefined;
               const visual = visualFor(`${product.name} ${category?.name ?? ''}`);
@@ -367,7 +385,7 @@ export function ProductGrid({
               return (
                 <article
                   key={product.id}
-                  className={`group relative flex flex-col justify-between rounded-3xl border-2 p-3.5 shadow-sm transition ${
+                  className={`group relative flex flex-col justify-between rounded-2xl border-2 p-2.5 shadow-sm transition md:rounded-3xl md:p-3.5 ${
                     soldOut
                       ? 'border-slate-200 bg-slate-50'
                       : 'border-slate-200 bg-white hover:border-emerald-400'
@@ -389,7 +407,7 @@ export function ProductGrid({
                                 : 'por kilo'
                           }`
                     }
-                    className={`absolute inset-0 z-10 rounded-3xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 ${
+                    className={`absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 md:rounded-3xl ${
                       soldOut ? 'cursor-not-allowed' : ''
                     }`}
                   />
@@ -425,31 +443,31 @@ export function ProductGrid({
                     {sizeLabel(product)}
                   </span>
                   <div
-                    className={`mb-3 flex items-center justify-center rounded-2xl p-4 ${isPhoto ? 'bg-slate-50' : category?.color ? '' : 'bg-slate-100'}`}
+                    className={`mb-2 flex items-center justify-center rounded-2xl p-2 md:mb-3 md:p-4 ${isPhoto ? 'bg-slate-50' : category?.color ? '' : 'bg-slate-100'}`}
                     style={!isPhoto && category?.color ? { backgroundColor: category.color } : undefined}
                   >
                     {isPhoto ? (
-                      <img src={product.image_url ?? ''} alt="" className="h-24 w-full object-contain" />
+                      <img src={product.image_url ?? ''} alt="" className="h-16 w-full object-contain md:h-24" />
                     ) : (
-                      <span aria-hidden="true" className="select-none text-6xl drop-shadow-sm">
+                      <span aria-hidden="true" className="select-none text-4xl drop-shadow-sm md:text-6xl">
                         {emoji}
                       </span>
                     )}
                   </div>
                   <div>
-                    <h3 className="line-clamp-2 text-xl font-extrabold leading-tight text-slate-900">
+                    <h3 className="line-clamp-2 text-lg font-extrabold leading-tight text-slate-900 md:text-xl">
                       {product.name}
                     </h3>
-                    <p className="mb-2 text-base font-semibold text-slate-600">{subtitle}</p>
+                    <p className="mb-1.5 text-base font-semibold text-slate-600 md:mb-2">{subtitle}</p>
                     {soldOut ? (
-                      <p className="mb-2 text-base font-black text-red-700">Agotado</p>
+                      <p className="mb-1.5 text-base font-black text-red-700 md:mb-2">Agotado</p>
                     ) : lowStock ? (
-                      <p className="mb-2 text-base font-bold text-amber-800">
+                      <p className="mb-1.5 text-base font-bold text-amber-800 md:mb-2">
                         Quedan {formatStock(product.stock_qty, product.sale_unit)}
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-2">
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 md:pt-2">
                     <span className="text-2xl font-black text-slate-900">
                       {formatMXN(product.price_cents)}
                     </span>

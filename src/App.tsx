@@ -246,7 +246,7 @@ function App() {
       )}
 
       {!isRemoteConfigured && (
-        <div className="pointer-events-none fixed bottom-1 right-2 text-sm text-slate-400">
+        <div className="pointer-events-none fixed bottom-1 right-2 hidden text-sm text-slate-400 md:block">
           modo demostración
         </div>
       )}

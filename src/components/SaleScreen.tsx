@@ -644,10 +644,10 @@ export function SaleScreen({
 
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
-      <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-5 py-3 shadow-sm">
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-3 py-2 shadow-sm md:px-5 md:py-3">
+        <div className="grid gap-2 md:gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           {/* Info de la tienda y del turno. */}
-          <div className="flex min-w-0 items-center gap-4">
+          <div className="flex min-w-0 items-center gap-2 md:gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-emerald-500 bg-emerald-100 p-2.5 text-3xl shadow-sm">
               {store.logo_url ? (
                 <img src={store.logo_url} alt="" className="h-full w-full object-cover" />
@@ -656,18 +656,18 @@ export function SaleScreen({
               )}
             </div>
             <div className="min-w-0">
-              <h1 className="flex min-w-0 items-center gap-2 text-xl font-black leading-none tracking-tight text-slate-900 xl:text-2xl">
+              <h1 className="flex min-w-0 items-center gap-2 text-lg font-black leading-none tracking-tight text-slate-900 md:text-xl xl:text-2xl">
                 <span className="truncate">{store.name}</span>
                 <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-extrabold uppercase tracking-wider text-emerald-800">
                   {roleLabel}
                 </span>
               </h1>
-              <p className="mt-1 flex flex-wrap items-center gap-2 text-base font-bold text-slate-600">
+              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-base font-bold text-slate-600 md:mt-1">
                 <span>
                   👤 Atiende: <strong className="text-slate-900">{user.name}</strong>
                 </span>
                 <span className="hidden text-slate-300 xl:inline">•</span>
-                <span className="inline-flex items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-emerald-800">
+                <span className="hidden items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-emerald-800 sm:inline-flex">
                   <span className="text-sm" aria-hidden="true">
                     💰
                   </span>{" "}
@@ -683,15 +683,15 @@ export function SaleScreen({
           {/* Tres acciones primarias + un panel explícito; una sola fila. */}
           <nav
             aria-label="Acciones del turno"
-            className="grid w-full grid-cols-4 gap-2 lg:w-[440px] xl:w-[520px]"
+            className="grid w-full grid-cols-4 gap-1.5 md:gap-2 lg:w-[440px] xl:w-[520px]"
           >
             <button
               type="button"
               onClick={() => setHelpOpen(true)}
               title="Pedir asistencia o instrucciones"
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-amber-300 bg-amber-100 px-1 py-2 text-base font-black leading-tight text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-amber-300 bg-amber-100 px-1 py-1 text-base font-black leading-tight text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95 md:py-2"
             >
-              <span className="text-xl xl:text-2xl" aria-hidden="true">
+              <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 ❓
               </span>
               <span>Ayuda</span>
@@ -699,9 +699,9 @@ export function SaleScreen({
             <button
               type="button"
               onClick={openHeld}
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-2 text-base font-extrabold leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-1 text-base font-extrabold md:py-2 leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
             >
-              <span className="text-xl xl:text-2xl" aria-hidden="true">
+              <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 ⏳
               </span>
               <span>En espera</span>
@@ -710,9 +710,9 @@ export function SaleScreen({
               type="button"
               onClick={onOpenCash}
               title="Abrir caja"
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-1 py-2 text-base font-extrabold leading-tight text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-1 py-1 text-base font-extrabold md:py-2 leading-tight text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
             >
-              <span className="text-xl xl:text-2xl" aria-hidden="true">
+              <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 💰
               </span>
               <span>Caja</span>
@@ -723,9 +723,9 @@ export function SaleScreen({
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               title="Más acciones del turno"
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-2 text-base font-extrabold leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-1 text-base font-extrabold md:py-2 leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
             >
-              <span className="text-xl xl:text-2xl" aria-hidden="true">
+              <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 ⋯
               </span>
               <span>Más</span>
@@ -737,12 +737,14 @@ export function SaleScreen({
       {lowStock.length > 0 && (
         <div
           role="status"
-          className="flex items-center gap-2 bg-amber-100 px-4 py-2 text-lg font-semibold text-amber-900"
+          className="flex items-center gap-2 bg-amber-100 px-3 py-1.5 text-base font-semibold text-amber-900 md:px-4 md:py-2 md:text-lg"
         >
           <span aria-hidden="true">⚠️</span>
-          <span>
+          <span className="min-w-0 flex-1 truncate">
             {lowStock.length} {lowStock.length === 1 ? 'producto' : 'productos'} con poco stock.{' '}
-            {canManage ? 'Revísalo en Más → Menú → Inventario.' : 'Avisa al encargado para reponer.'}
+            <span className="hidden md:inline">
+              {canManage ? 'Revísalo en Más → Menú → Inventario.' : 'Avisa al encargado para reponer.'}
+            </span>
           </span>
         </div>
       )}
@@ -751,7 +753,7 @@ export function SaleScreen({
         <div
           role="status"
           aria-live="polite"
-          className="flex flex-wrap items-center gap-3 bg-sky-100 px-4 py-2 text-lg font-semibold text-sky-950"
+          className="flex flex-wrap items-center gap-2 bg-sky-100 px-3 py-1.5 text-base font-semibold text-sky-950 md:gap-3 md:px-4 md:py-2 md:text-lg"
         >
           <span aria-hidden="true">📤</span>
           <span className="flex-1">
@@ -770,7 +772,7 @@ export function SaleScreen({
       )}
 
       {cutoffAlerts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-orange-100 px-4 py-2 text-lg font-semibold text-orange-900">
+        <div className="flex flex-wrap items-center gap-2 bg-orange-100 px-3 py-1.5 text-base font-semibold text-orange-900 md:px-4 md:py-2 md:text-lg">
           <span aria-hidden="true">⏰</span>
           <span>
             Pedido a {cutoffAlerts.map((alert) => `${alert.name} antes de ${alert.time}`).join(' · ')}
@@ -806,8 +808,17 @@ export function SaleScreen({
             view === 'cart' ? 'flex' : 'hidden'
           }`}
         >
-          <div className="flex flex-none items-center justify-between gap-2 border-b-2 border-slate-200 bg-slate-50 p-4">
+          <div className="flex flex-none items-center justify-between gap-2 border-b-2 border-slate-200 bg-slate-50 p-3 md:p-4">
             <div className="flex min-w-0 items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setView('catalog')}
+                aria-label="Volver al catálogo"
+                title="Volver al catálogo"
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-2xl text-slate-700 md:hidden"
+              >
+                ←
+              </button>
               <span className="text-2xl" aria-hidden="true">
                 🧾
               </span>
@@ -855,7 +866,7 @@ export function SaleScreen({
             </div>
           )}
 
-          <div className="flex-none space-y-2 border-t-2 border-slate-200 bg-slate-50 p-3">
+          <div className="flex-none space-y-1.5 border-t-2 border-slate-200 bg-slate-50 p-2.5 md:space-y-2 md:p-3">
             {promoDiscount > 0 && (
               <div className="flex items-center justify-between text-base font-bold text-emerald-700">
                 <span>🏷️ Promociones</span>
@@ -877,7 +888,7 @@ export function SaleScreen({
                   type="button"
                   onClick={requestDiscount}
                   disabled={cart.length === 0}
-                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-base font-extrabold leading-tight transition active:scale-95 xl:px-2 ${
+                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 md:py-2.5 xl:px-2 ${
                     cart.length === 0
                       ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                       : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
@@ -893,7 +904,7 @@ export function SaleScreen({
                 type="button"
                 onClick={undo}
                 disabled={history.length === 0}
-                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-base font-extrabold leading-tight transition active:scale-95 xl:px-2 ${
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 md:py-2.5 xl:px-2 ${
                   history.length === 0
                     ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                     : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
@@ -908,7 +919,7 @@ export function SaleScreen({
                 type="button"
                 onClick={() => setAskCancel(true)}
                 disabled={cart.length === 0}
-                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2.5 text-base font-extrabold leading-tight transition active:scale-95 xl:px-2 ${
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 md:py-2.5 xl:px-2 ${
                   cart.length === 0
                     ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                     : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
@@ -921,7 +932,7 @@ export function SaleScreen({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-baseline justify-between gap-1 rounded-2xl border-2 border-slate-200 bg-white p-3 shadow-xs">
+            <div className="flex flex-wrap items-baseline justify-between gap-1 rounded-2xl border-2 border-slate-200 bg-white p-2.5 shadow-xs md:p-3">
               <div>
                 <span className="block text-base font-black uppercase tracking-wider text-slate-600">
                   Total a Pagar
@@ -940,7 +951,7 @@ export function SaleScreen({
               type="button"
               onClick={() => setPaymentOpen(true)}
               disabled={cart.length === 0}
-              className={`flex w-full items-center justify-center gap-3 rounded-2xl border-b-4 px-6 py-5 text-xl font-black tracking-wide text-white shadow-lg transition active:scale-[0.98] xl:text-2xl ${
+              className={`flex w-full items-center justify-center gap-3 rounded-2xl border-b-4 px-6 py-4 text-xl font-black tracking-wide text-white shadow-lg transition active:scale-[0.98] md:py-5 xl:text-2xl ${
                 cart.length === 0
                   ? 'cursor-not-allowed border-slate-300 bg-slate-300'
                   : 'border-emerald-800 bg-emerald-600 hover:bg-emerald-700 hover:shadow-xl'
@@ -955,23 +966,30 @@ export function SaleScreen({
         </aside>
       </div>
 
-      {/* Barra inferior solo en teléfonos (en tablet horizontal se ven ambas). */}
-      <nav className="grid grid-cols-2 gap-2 border-t border-slate-200 bg-white p-2 md:hidden">
-        <button
-          type="button"
-          onClick={() => setView('catalog')}
-          className={`btn py-4 text-xl ${view === 'catalog' ? 'btn-primary text-white' : 'btn-neutral'}`}
+      {/* En teléfono: total siempre visible y el carrito a un toque.
+          En tablet horizontal se ven catálogo y ticket a la vez. */}
+      {view === 'catalog' && (
+        <nav
+          aria-label="Resumen de venta"
+          className="flex items-center gap-2 border-t border-slate-200 bg-white p-2 md:hidden"
         >
-          🍎 Ver Catálogo
-        </button>
-        <button
-          type="button"
-          onClick={() => setView('cart')}
-          className={`btn py-4 text-xl ${view === 'cart' ? 'btn-primary text-white' : 'btn-neutral'}`}
-        >
-          🛒 Ver Carrito{count > 0 ? ` (${count})` : ''}
-        </button>
-      </nav>
+          <div className="min-w-0 flex-1 pl-2">
+            <p className="text-base font-bold leading-tight text-slate-600">
+              {count} producto{count === 1 ? '' : 's'}
+            </p>
+            <p className="text-2xl font-black leading-tight text-slate-900">
+              {formatMXN(total)}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setView('cart')}
+            className="btn btn-primary min-w-36 text-lg"
+          >
+            🛒 Ver carrito
+          </button>
+        </nav>
+      )}
 
       {message && (
         <div

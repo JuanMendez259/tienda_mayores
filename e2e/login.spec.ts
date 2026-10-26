@@ -25,8 +25,9 @@ test.describe('login de demostración', () => {
     await expect(page.getByRole('heading', { name: 'Abrir caja', level: 1 })).toBeVisible();
     await page.getByRole('button', { name: /Abrir caja y vender/ }).click();
 
-    // En móvil (< 768 px) el ticket empieza oculto: se alterna con "Ver Carrito".
-    const verCarrito = page.getByRole('button', { name: /Ver Carrito/ });
+    // En móvil (< 768 px) el ticket empieza oculto: se abre con la barra
+    // inferior "Ver carrito" (en tablet ambas columnas ya están visibles).
+    const verCarrito = page.getByRole('button', { name: /Ver carrito/i });
     if (await verCarrito.isVisible()) {
       await verCarrito.click();
     }
