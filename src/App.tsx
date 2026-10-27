@@ -245,7 +245,7 @@ function App() {
         </>
       )}
 
-      {!isRemoteConfigured && (
+      {!isRemoteConfigured && stage !== 'ready' && (
         <div className="pointer-events-none fixed bottom-1 right-2 hidden text-sm text-slate-400 md:block">
           modo demostración
         </div>

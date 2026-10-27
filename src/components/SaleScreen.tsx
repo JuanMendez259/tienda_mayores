@@ -644,10 +644,10 @@ export function SaleScreen({
 
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
-      <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-3 py-2 shadow-sm md:px-5 md:py-3">
-        <div className="grid gap-2 md:gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+      <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-3 py-2 shadow-sm xl:px-5 xl:py-3">
+        <div className="grid gap-2 xl:gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
           {/* Info de la tienda y del turno. */}
-          <div className="flex min-w-0 items-center gap-2 md:gap-4">
+          <div className="flex min-w-0 items-center gap-2 xl:gap-4">
             <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl border-2 border-emerald-500 bg-emerald-100 p-2.5 text-3xl shadow-sm">
               {store.logo_url ? (
                 <img src={store.logo_url} alt="" className="h-full w-full object-cover" />
@@ -656,17 +656,17 @@ export function SaleScreen({
               )}
             </div>
             <div className="min-w-0">
-              <h1 className="flex min-w-0 items-center gap-2 text-lg font-black leading-none tracking-tight text-slate-900 md:text-xl xl:text-2xl">
+              <h1 className="flex min-w-0 items-center gap-2 text-lg font-black leading-none tracking-tight text-slate-900 xl:text-2xl">
                 <span className="truncate">{store.name}</span>
                 <span className="shrink-0 rounded-full bg-emerald-100 px-2.5 py-0.5 text-sm font-extrabold uppercase tracking-wider text-emerald-800">
                   {roleLabel}
                 </span>
               </h1>
-              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-base font-bold text-slate-600 md:mt-1">
+              <p className="mt-0.5 flex flex-wrap items-center gap-2 text-base font-bold text-slate-600 xl:mt-1">
                 <span>
                   👤 Atiende: <strong className="text-slate-900">{user.name}</strong>
                 </span>
-                <span className="hidden text-slate-300 xl:inline">•</span>
+                <span className="hidden text-slate-300 md:inline">•</span>
                 <span className="hidden items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-emerald-800 sm:inline-flex">
                   <span className="text-sm" aria-hidden="true">
                     💰
@@ -683,13 +683,13 @@ export function SaleScreen({
           {/* Tres acciones primarias + un panel explícito; una sola fila. */}
           <nav
             aria-label="Acciones del turno"
-            className="grid w-full grid-cols-4 gap-1.5 md:gap-2 lg:w-[440px] xl:w-[520px]"
+            className="grid w-full grid-cols-4 gap-1.5 xl:gap-2 lg:w-[400px] xl:w-[520px]"
           >
             <button
               type="button"
               onClick={() => setHelpOpen(true)}
               title="Pedir asistencia o instrucciones"
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-amber-300 bg-amber-100 px-1 py-1 text-base font-black leading-tight text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95 md:py-2"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-amber-300 bg-amber-100 px-1 py-1 text-base font-black leading-tight text-amber-900 shadow-sm transition hover:bg-amber-200 active:scale-95 xl:py-2"
             >
               <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 ❓
@@ -699,7 +699,7 @@ export function SaleScreen({
             <button
               type="button"
               onClick={openHeld}
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-1 text-base font-extrabold md:py-2 leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-1 text-base font-extrabold xl:py-2 leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
             >
               <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 ⏳
@@ -710,7 +710,7 @@ export function SaleScreen({
               type="button"
               onClick={onOpenCash}
               title="Abrir caja"
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-1 py-1 text-base font-extrabold md:py-2 leading-tight text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-emerald-300 bg-emerald-50 px-1 py-1 text-base font-extrabold xl:py-2 leading-tight text-emerald-800 shadow-sm transition hover:bg-emerald-100 active:scale-95"
             >
               <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 💰
@@ -723,7 +723,7 @@ export function SaleScreen({
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
               title="Más acciones del turno"
-              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-1 text-base font-extrabold md:py-2 leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
+              className="flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 border-slate-300 bg-slate-100 px-1 py-1 text-base font-extrabold xl:py-2 leading-tight text-slate-700 shadow-sm transition hover:bg-slate-200 active:scale-95"
             >
               <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
                 ⋯
@@ -737,7 +737,7 @@ export function SaleScreen({
       {lowStock.length > 0 && (
         <div
           role="status"
-          className="flex items-center gap-2 bg-amber-100 px-3 py-1.5 text-base font-semibold text-amber-900 md:px-4 md:py-2 md:text-lg"
+          className="flex items-center gap-2 bg-amber-100 px-3 py-1.5 text-base font-semibold text-amber-900 xl:px-4 xl:py-2 xl:text-lg"
         >
           <span aria-hidden="true">⚠️</span>
           <span className="min-w-0 flex-1 truncate">
@@ -753,7 +753,7 @@ export function SaleScreen({
         <div
           role="status"
           aria-live="polite"
-          className="flex flex-wrap items-center gap-2 bg-sky-100 px-3 py-1.5 text-base font-semibold text-sky-950 md:gap-3 md:px-4 md:py-2 md:text-lg"
+          className="flex flex-wrap items-center gap-2 bg-sky-100 px-3 py-1.5 text-base font-semibold text-sky-950 xl:gap-3 xl:px-4 xl:py-2 xl:text-lg"
         >
           <span aria-hidden="true">📤</span>
           <span className="flex-1">
@@ -772,7 +772,7 @@ export function SaleScreen({
       )}
 
       {cutoffAlerts.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 bg-orange-100 px-3 py-1.5 text-base font-semibold text-orange-900 md:px-4 md:py-2 md:text-lg">
+        <div className="flex flex-wrap items-center gap-2 bg-orange-100 px-3 py-1.5 text-base font-semibold text-orange-900 xl:px-4 xl:py-2 xl:text-lg">
           <span aria-hidden="true">⏰</span>
           <span>
             Pedido a {cutoffAlerts.map((alert) => `${alert.name} antes de ${alert.time}`).join(' · ')}
@@ -808,7 +808,7 @@ export function SaleScreen({
             view === 'cart' ? 'flex' : 'hidden'
           }`}
         >
-          <div className="flex flex-none items-center justify-between gap-2 border-b-2 border-slate-200 bg-slate-50 p-3 md:p-4">
+          <div className="flex flex-none items-center justify-between gap-2 border-b-2 border-slate-200 bg-slate-50 p-3 xl:p-4">
             <div className="flex min-w-0 items-center gap-2">
               <button
                 type="button"
@@ -866,7 +866,7 @@ export function SaleScreen({
             </div>
           )}
 
-          <div className="flex-none space-y-1.5 border-t-2 border-slate-200 bg-slate-50 p-2.5 md:space-y-2 md:p-3">
+          <div className="flex-none space-y-1.5 border-t-2 border-slate-200 bg-slate-50 p-2.5 xl:space-y-2 xl:p-3">
             {promoDiscount > 0 && (
               <div className="flex items-center justify-between text-base font-bold text-emerald-700">
                 <span>🏷️ Promociones</span>
@@ -888,7 +888,7 @@ export function SaleScreen({
                   type="button"
                   onClick={requestDiscount}
                   disabled={cart.length === 0}
-                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 md:py-2.5 xl:px-2 ${
+                  className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 xl:py-2.5 xl:px-2 ${
                     cart.length === 0
                       ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                       : 'border-amber-300 bg-amber-50 text-amber-900 hover:bg-amber-100'
@@ -904,7 +904,7 @@ export function SaleScreen({
                 type="button"
                 onClick={undo}
                 disabled={history.length === 0}
-                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 md:py-2.5 xl:px-2 ${
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 xl:py-2.5 xl:px-2 ${
                   history.length === 0
                     ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                     : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-100'
@@ -919,7 +919,7 @@ export function SaleScreen({
                 type="button"
                 onClick={() => setAskCancel(true)}
                 disabled={cart.length === 0}
-                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 md:py-2.5 xl:px-2 ${
+                className={`flex min-h-14 flex-col items-center justify-center rounded-xl border px-1.5 py-2 text-base font-extrabold leading-tight transition active:scale-95 xl:py-2.5 xl:px-2 ${
                   cart.length === 0
                     ? 'cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400'
                     : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'
@@ -932,7 +932,7 @@ export function SaleScreen({
               </button>
             </div>
 
-            <div className="flex flex-wrap items-baseline justify-between gap-1 rounded-2xl border-2 border-slate-200 bg-white p-2.5 shadow-xs md:p-3">
+            <div className="flex flex-wrap items-baseline justify-between gap-1 rounded-2xl border-2 border-slate-200 bg-white p-2.5 shadow-xs xl:p-3">
               <div>
                 <span className="block text-base font-black uppercase tracking-wider text-slate-600">
                   Total a Pagar
@@ -951,7 +951,7 @@ export function SaleScreen({
               type="button"
               onClick={() => setPaymentOpen(true)}
               disabled={cart.length === 0}
-              className={`flex w-full items-center justify-center gap-3 rounded-2xl border-b-4 px-6 py-4 text-xl font-black tracking-wide text-white shadow-lg transition active:scale-[0.98] md:py-5 xl:text-2xl ${
+              className={`flex w-full items-center justify-center gap-3 rounded-2xl border-b-4 px-6 py-4 text-xl font-black tracking-wide text-white shadow-lg transition active:scale-[0.98] xl:py-5 xl:text-2xl ${
                 cart.length === 0
                   ? 'cursor-not-allowed border-slate-300 bg-slate-300'
                   : 'border-emerald-800 bg-emerald-600 hover:bg-emerald-700 hover:shadow-xl'

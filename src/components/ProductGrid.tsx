@@ -3,8 +3,8 @@ import type { Category, Product } from '../types/database';
 import { formatMXN } from '../lib/money';
 import { formatStock } from '../lib/weight';
 
-/** Categorías visibles antes de ofrecer "Ver más". */
-const CATEGORY_LIMIT = 6;
+/** Categorías visibles antes de ofrecer "Ver más" (tablet, sin gestos). */
+const CATEGORY_LIMIT = 3;
 
 interface ProductGridProps {
   products: Product[];
@@ -132,14 +132,14 @@ export function ProductGrid({
   }, [products, query, categoryId, brand, bestOnly, favoritesOnly, bestRank, favoriteSet]);
 
   const inactiveChip =
-    'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-4 py-2.5 text-base font-extrabold text-slate-800 shadow-xs transition hover:bg-slate-100 active:scale-95';
+    'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-200 bg-white px-3 py-2.5 text-base font-extrabold text-slate-800 shadow-xs transition hover:bg-slate-100 active:scale-95 xl:px-4';
   const activeChip =
-    'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-emerald-700 bg-emerald-600 px-5 py-2.5 text-lg font-black text-white shadow-sm transition active:scale-95';
+    'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-emerald-700 bg-emerald-600 px-4 py-2.5 text-lg font-black text-white shadow-sm transition active:scale-95 xl:px-5';
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="space-y-2 border-b border-slate-200 bg-white p-3 shadow-xs md:space-y-3 md:p-4">
-        <div className="flex items-center gap-2 md:gap-3">
+      <div className="space-y-2 border-b border-slate-200 bg-white p-3 shadow-xs xl:space-y-3 xl:p-4">
+        <div className="flex items-center gap-2 xl:gap-3">
           <div className="relative flex-1">
             <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4 text-2xl text-slate-400">
               🔍
@@ -147,19 +147,19 @@ export function ProductGrid({
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="Buscar producto por nombre o código..."
-              className="w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3 pl-13 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100 md:py-3.5"
+              placeholder="Buscar producto..."
+              className="w-full rounded-2xl border-2 border-slate-300 bg-slate-50 py-3 pl-13 pr-4 text-lg font-bold text-slate-900 outline-none transition placeholder:text-slate-500 focus:border-emerald-500 focus:bg-white focus:ring-4 focus:ring-emerald-100 xl:py-3.5"
               aria-label="Buscar producto"
             />
           </div>
           <button
             type="button"
             onClick={onNewProduct}
-            className="flex min-h-14 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-amber-600 bg-amber-500 px-3 py-2 text-lg font-black text-slate-950 shadow-sm transition hover:bg-amber-600 active:scale-95 md:px-5 md:py-3.5"
+            className="flex min-h-14 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-amber-600 bg-amber-500 px-3 py-2 text-lg font-black text-slate-950 shadow-sm transition hover:bg-amber-600 active:scale-95 xl:px-5 xl:py-3.5"
           >
             <span className="text-2xl leading-none">➕</span>
-            <span className="hidden sm:inline">Nuevo / Manual</span>
-            <span className="sm:hidden">Nuevo</span>
+            <span className="hidden xl:inline">Nuevo / Manual</span>
+            <span className="xl:hidden">Nuevo</span>
           </button>
         </div>
 
@@ -217,6 +217,24 @@ export function ProductGrid({
               {favorites.length > 0 && <span>({favorites.length})</span>}
             </button>
           )}
+          {/* En tablet el botón de categorías va antes de la lista: así cabe en
+              la primera fila y no queda solo en una tercera fila desbalanceada. */}
+          {categories.length > CATEGORY_LIMIT && (
+            <button
+              type="button"
+              aria-expanded={showAllCategories}
+              aria-label={
+                showAllCategories
+                  ? 'Ver menos categorías'
+                  : `Ver ${hiddenCategoryCount} categorías más`
+              }
+              onClick={() => setShowAllCategories((value) => !value)}
+              className={`${inactiveChip} hidden md:flex`}
+            >
+              <span aria-hidden="true">📂</span>
+              {showAllCategories ? 'Ver menos' : 'Ver más'}
+            </button>
+          )}
           {visibleCategories.map((category) => (
             <button
               key={category.id}
@@ -237,8 +255,8 @@ export function ProductGrid({
               {category.name}
             </button>
           ))}
-          {/* En teléfono las categorías se despliegan con un botón rotulado;
-              en tablet caben hasta 6 y el botón solo aparece si hay más. */}
+          {/* En teléfono las categorías y la marca se despliegan con un botón
+              rotulado; en tablet caben en la misma franja de filtros. */}
           <button
             type="button"
             aria-expanded={showAllCategories}
@@ -248,56 +266,34 @@ export function ProductGrid({
             <span aria-hidden="true">📂</span>
             {showAllCategories ? 'Ver menos' : `Ver ${categories.length} más`}
           </button>
-          {categories.length > CATEGORY_LIMIT && (
+          {brands.length > 0 && (
             <button
               type="button"
-              aria-expanded={showAllCategories}
-              onClick={() => setShowAllCategories((value) => !value)}
-              className={`${inactiveChip} hidden md:flex`}
+              aria-expanded={brandPanelOpen}
+              aria-controls="brand-panel"
+              onClick={() => setBrandPanelOpen((value) => !value)}
+              className={`${brand ? activeChip : inactiveChip} ${
+                brand || showAllCategories ? 'flex' : 'hidden md:flex'
+              }`}
             >
-              <span aria-hidden="true">📂</span>
-              {showAllCategories ? 'Ver menos' : `Ver ${hiddenCategoryCount} más`}
+              <span aria-hidden="true">🏷️</span>
+              <span>
+                Marca: <strong>{brand ?? 'Todas'}</strong>
+              </span>
+              <span aria-hidden="true">{brandPanelOpen ? '▲' : '▼'}</span>
+            </button>
+          )}
+          {brand && (
+            <button type="button" onClick={() => setBrand(null)} className={inactiveChip}>
+              <span aria-hidden="true">✖</span> Quitar marca
+            </button>
+          )}
+          {activeFilterCount > 0 && (
+            <button type="button" onClick={clearFilters} className={inactiveChip}>
+              <span aria-hidden="true">↺</span> Limpiar filtros
             </button>
           )}
         </div>
-
-        {(brands.length > 0 || activeFilterCount > 0) && (
-          <div className="flex flex-wrap items-center gap-2">
-            {brands.length > 0 && (
-              <button
-                type="button"
-                aria-expanded={brandPanelOpen}
-                aria-controls="brand-panel"
-                onClick={() => setBrandPanelOpen((value) => !value)}
-                className={
-                  brand
-                    ? activeChip
-                    : 'flex min-h-14 shrink-0 items-center gap-2 whitespace-nowrap rounded-2xl border-2 border-slate-300 bg-white px-4 py-2.5 text-base font-extrabold text-slate-800 shadow-xs transition hover:bg-slate-100 active:scale-95'
-                }
-              >
-                <span aria-hidden="true">🏷️</span>
-                <span>
-                  Marca: <strong>{brand ?? 'Todas'}</strong>
-                </span>
-                <span aria-hidden="true">{brandPanelOpen ? '▲' : '▼'}</span>
-              </button>
-            )}
-            {brand && (
-              <button
-                type="button"
-                onClick={() => setBrand(null)}
-                className={inactiveChip}
-              >
-                <span aria-hidden="true">✖</span> Quitar marca
-              </button>
-            )}
-            {activeFilterCount > 0 && (
-              <button type="button" onClick={clearFilters} className={inactiveChip}>
-                <span aria-hidden="true">↺</span> Limpiar filtros
-              </button>
-            )}
-          </div>
-        )}
 
         {brands.length > 0 && brandPanelOpen && (
           <div
@@ -345,7 +341,7 @@ export function ProductGrid({
         )}
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-3 md:p-4">
+      <div className="min-h-0 flex-1 overflow-y-auto p-3 xl:p-4">
         {filtered.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center text-slate-500">
             <span className="text-6xl">🔎</span>
@@ -357,26 +353,30 @@ export function ProductGrid({
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2.5 md:gap-3.5 lg:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 xl:gap-3.5 lg:grid-cols-3">
             {filtered.map((product) => {
               const category = product.category_id ? categoryById.get(product.category_id) : undefined;
               const visual = visualFor(`${product.name} ${category?.name ?? ''}`);
               const iconEmoji = emojiFromIcon(product.image_url);
               const isPhoto = Boolean(product.image_url) && !iconEmoji;
               const emoji = iconEmoji ?? visual.emoji;
-              const subtitle = product.brand
-                ? `${product.brand} · ${
-                    product.sale_unit === 'piece'
-                      ? 'Por pieza'
-                      : product.sale_unit === 'volume'
-                        ? 'Por litro'
-                        : 'Por kilo'
-                  }`
-                : product.sale_unit === 'piece'
+              const measureLabel =
+                product.sale_unit === 'piece'
                   ? 'Por pieza'
                   : product.sale_unit === 'volume'
                     ? 'Por litro'
-                    : 'Por kilo a granel';
+                    : 'Por kilo';
+              // La marca ya suele estar en el nombre ("Coca Cola Light 255ml"):
+              // repetirla parte el subtítulo en dos líneas y desalinea la fila.
+              const brandInName = product.brand
+                ? product.name.toLowerCase().includes(product.brand.toLowerCase())
+                : false;
+              const subtitle =
+                product.brand && !brandInName
+                  ? `${product.brand} · ${measureLabel}`
+                  : product.sale_unit === 'weight'
+                    ? `${measureLabel} a granel`
+                    : measureLabel;
               const soldOut = product.track_stock && product.stock_qty <= 0;
               const lowStock =
                 product.track_stock &&
@@ -385,7 +385,7 @@ export function ProductGrid({
               return (
                 <article
                   key={product.id}
-                  className={`group relative flex flex-col justify-between rounded-2xl border-2 p-2.5 shadow-sm transition md:rounded-3xl md:p-3.5 ${
+                  className={`group relative flex flex-col justify-between rounded-2xl border-2 p-2.5 shadow-sm transition xl:rounded-3xl xl:p-3.5 ${
                     soldOut
                       ? 'border-slate-200 bg-slate-50'
                       : 'border-slate-200 bg-white hover:border-emerald-400'
@@ -407,7 +407,7 @@ export function ProductGrid({
                                 : 'por kilo'
                           }`
                     }
-                    className={`absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 md:rounded-3xl ${
+                    className={`absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 xl:rounded-3xl ${
                       soldOut ? 'cursor-not-allowed' : ''
                     }`}
                   />
@@ -443,31 +443,31 @@ export function ProductGrid({
                     {sizeLabel(product)}
                   </span>
                   <div
-                    className={`mb-2 flex items-center justify-center rounded-2xl p-2 md:mb-3 md:p-4 ${isPhoto ? 'bg-slate-50' : category?.color ? '' : 'bg-slate-100'}`}
+                    className={`mb-2 flex items-center justify-center rounded-2xl p-2 xl:mb-3 xl:p-4 ${isPhoto ? 'bg-slate-50' : category?.color ? '' : 'bg-slate-100'}`}
                     style={!isPhoto && category?.color ? { backgroundColor: category.color } : undefined}
                   >
                     {isPhoto ? (
-                      <img src={product.image_url ?? ''} alt="" className="h-16 w-full object-contain md:h-24" />
+                      <img src={product.image_url ?? ''} alt="" className="h-16 w-full object-contain xl:h-24" />
                     ) : (
-                      <span aria-hidden="true" className="select-none text-4xl drop-shadow-sm md:text-6xl">
+                      <span aria-hidden="true" className="select-none text-4xl drop-shadow-sm xl:text-6xl">
                         {emoji}
                       </span>
                     )}
                   </div>
                   <div>
-                    <h3 className="line-clamp-2 text-lg font-extrabold leading-tight text-slate-900 md:text-xl">
+                    <h3 className="line-clamp-2 text-lg font-extrabold leading-tight text-slate-900 xl:text-xl">
                       {product.name}
                     </h3>
-                    <p className="mb-1.5 text-base font-semibold text-slate-600 md:mb-2">{subtitle}</p>
+                    <p className="mb-1.5 text-base font-semibold text-slate-600 xl:mb-2">{subtitle}</p>
                     {soldOut ? (
-                      <p className="mb-1.5 text-base font-black text-red-700 md:mb-2">Agotado</p>
+                      <p className="mb-1.5 text-base font-black text-red-700 xl:mb-2">Agotado</p>
                     ) : lowStock ? (
-                      <p className="mb-1.5 text-base font-bold text-amber-800 md:mb-2">
+                      <p className="mb-1.5 text-base font-bold text-amber-800 xl:mb-2">
                         Quedan {formatStock(product.stock_qty, product.sale_unit)}
                       </p>
                     ) : null}
                   </div>
-                  <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 md:pt-2">
+                  <div className="flex items-center justify-between border-t border-slate-100 pt-1.5 xl:pt-2">
                     <span className="text-2xl font-black text-slate-900">
                       {formatMXN(product.price_cents)}
                     </span>
