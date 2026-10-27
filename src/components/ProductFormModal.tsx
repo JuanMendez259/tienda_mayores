@@ -5,6 +5,7 @@ import { parseAmountToCents } from '../lib/money';
 import { fileToDataUrl } from '../lib/image';
 import { generateBarcode } from '../lib/csv';
 import { CameraCapture } from './CameraCapture';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 
 interface ProductFormModalProps {
   categories: Category[];
@@ -44,6 +45,7 @@ export function ProductFormModal({
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [imageUrl, setImageUrl] = useState<string | null>(product?.image_url ?? null);
   const [cameraOpen, setCameraOpen] = useState(false);
+  const [scannerOpen, setScannerOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -249,9 +251,26 @@ export function ProductFormModal({
 
           <div className="sm:col-span-2">
             <label className={label} htmlFor="p-barcode">Código de barras (opcional)</label>
-            <input id="p-barcode" value={barcode} onChange={(e) => setBarcode(e.target.value)} className={field} />
+            <div className="flex gap-2">
+              <input
+                id="p-barcode"
+                value={barcode}
+                onChange={(e) => setBarcode(e.target.value)}
+                className={`${field} flex-1`}
+              />
+              <button
+                type="button"
+                onClick={() => setScannerOpen(true)}
+                aria-label="Escanear código de barras con la cámara"
+                className="btn btn-neutral shrink-0 px-4 py-3 text-lg"
+              >
+                <span aria-hidden="true">📷</span>
+                <span className="sm:hidden">Leer</span>
+                <span className="hidden sm:inline">Escanear</span>
+              </button>
+            </div>
             <p className="mt-1 text-base text-slate-500">
-              Si lo dejas vacío, el sistema genera un código interno (F-405).
+              Escribe el código, usa el lector USB o tócalo con la cámara. Si lo dejas vacío, el sistema genera un código interno (F-405).
             </p>
           </div>
         </div>
@@ -277,6 +296,16 @@ export function ProductFormModal({
 
       {cameraOpen && (
         <CameraCapture onCapture={(dataUrl) => setImageUrl(dataUrl)} onClose={() => setCameraOpen(false)} />
+      )}
+
+      {scannerOpen && (
+        <BarcodeScannerModal
+          onDetected={(code) => {
+            setBarcode(code);
+            setScannerOpen(false);
+          }}
+          onClose={() => setScannerOpen(false)}
+        />
       )}
     </div>
   );
