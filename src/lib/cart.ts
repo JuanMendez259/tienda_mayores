@@ -66,23 +66,33 @@ export function measureFromProduct(product: Product, measure: number): CartItem 
 }
 
 /**
- * Agrega un producto por pieza. Si ya existe un renglón de ese producto,
- * incrementa la cantidad (comportamiento típico de POS).
+ * Agrega varias piezas de un producto en un solo movimiento (F-113).
+ * Si ya existe un renglón de ese producto, incrementa la cantidad sin
+ * recalcular ni borrar sus descuentos guardados.
  */
-export function addPiece(cart: readonly CartItem[], product: Product): CartItem[] {
+export function addPieces(cart: readonly CartItem[], product: Product, qty: number): CartItem[] {
+  if (qty <= 0) return [...cart];
   const existing = cart.find(
     (item) => item.productId === product.id && item.saleUnit === 'piece',
   );
-  if (!existing) return [...cart, pieceFromProduct(product)];
+  if (!existing) return [...cart, pieceFromProduct(product, qty)];
   return cart.map((item) =>
     item.key === existing.key
       ? {
           ...item,
-          qty: item.qty + 1,
-          lineTotalCents: lineTotal(item.unitPriceCents, 'piece', item.qty + 1, null),
+          qty: item.qty + qty,
+          lineTotalCents: lineTotal(item.unitPriceCents, 'piece', item.qty + qty, null),
         }
       : item,
   );
+}
+
+/**
+ * Agrega un producto por pieza. Si ya existe un renglón de ese producto,
+ * incrementa la cantidad (comportamiento típico de POS).
+ */
+export function addPiece(cart: readonly CartItem[], product: Product): CartItem[] {
+  return addPieces(cart, product, 1);
 }
 
 /** Agrega un producto por peso/volumen (cada captura es un renglón). */

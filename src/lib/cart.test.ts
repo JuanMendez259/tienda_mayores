@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Product, Promotion } from '../types/database';
+import { seedProducts } from '../data/seed';
 import {
   addMeasure,
   addPiece,
+  addPieces,
   applyAutoPromotions,
   cartDiscountCents,
   cartItemCount,
@@ -67,6 +69,29 @@ describe('carrito por pieza', () => {
     let cart = addPiece([], product({}));
     cart = removeItem(cart, cart[0].key);
     expect(cart).toHaveLength(0);
+  });
+});
+
+describe('agregar varias piezas (F-113)', () => {
+  const product = seedProducts.find((p) => p.id === 'prd-arroz')!;
+
+  it('crea un renglón con la cantidad pedida', () => {
+    const next = addPieces([], product, 3);
+    expect(next).toHaveLength(1);
+    expect(next[0].qty).toBe(3);
+    expect(next[0].lineTotalCents).toBe(product.price_cents * 3);
+  });
+
+  it('suma a un renglón existente sin duplicarlo', () => {
+    const first = addPieces([], product, 1);
+    const next = addPieces(first, product, 2);
+    expect(next).toHaveLength(1);
+    expect(next[0].qty).toBe(3);
+    expect(next[0].lineTotalCents).toBe(product.price_cents * 3);
+  });
+
+  it('ignora cantidades no positivas', () => {
+    expect(addPieces([], product, 0)).toEqual([]);
   });
 });
 
