@@ -16,6 +16,7 @@ import type { PaymentInput, SaleWithItems } from '../data';
 import {
   addMeasure,
   addPiece,
+  addPieces,
   applyAutoPromotions,
   cartDiscountCents,
   cartItemCount,
@@ -40,9 +41,12 @@ import { enqueueSale } from '../lib/offlineQueue';
 import { logError } from '../lib/errorLog';
 import { useModalA11y } from '../lib/useModalA11y';
 import { usePendingSales } from '../lib/usePendingSales';
+import { isSoldOut } from '../lib/reducedSale';
+import { loadSaleMode, saveSaleMode } from '../lib/saleMode';
 import { useBarcodeScanner } from '../devices/barcode';
 import { PAYMENT_METHOD_LABELS } from '../devices/payments';
 import { ProductGrid } from './ProductGrid';
+import { ReducedSalePanel } from './ReducedSalePanel';
 import { Cart } from './Cart';
 import { WeightModal } from './WeightModal';
 import { PaymentModal } from './PaymentModal';
@@ -85,6 +89,11 @@ interface LastSale {
   items: { productId: string; qty: number; measure: number | null }[];
 }
 
+/** Sub-vistas del panel reducido (F-113). */
+type ReducedView = 'search' | 'detail' | 'catalog';
+/** De dónde salió el producto que se está detallando. */
+type PickSource = 'search' | 'scan' | 'catalog';
+
 export function SaleScreen({
   store,
   user,
@@ -118,6 +127,20 @@ export function SaleScreen({
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   /** En móvil/tablet se alterna catálogo/carrito; en lg se ven ambos a la vez. */
   const [view, setView] = useState<'catalog' | 'cart'>('catalog');
+  /** Vista reducida (F-113): buscador y detalle grande en lugar de la cuadrícula. */
+  const [reduced, setReduced] = useState(() => loadSaleMode(store.id) === 'reducida');
+  /** Tienda cuya preferencia está cargada; al cambiar, se relee el modo. */
+  const [modeStoreId, setModeStoreId] = useState(store.id);
+  const [reducedView, setReducedView] = useState<ReducedView>('search');
+  const [reducedQuery, setReducedQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [pickSource, setPickSource] = useState<PickSource>('search');
+  const [focusSignal, setFocusSignal] = useState(0);
+  const [wide, setWide] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
+  );
+  /** El modal del escáner de cámara llega en la tarea 6; aquí solo se marca. */
+  const [scanOpen, setScanOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerBalances, setCustomerBalances] = useState<Record<string, number>>({});
   const [schedules, setSchedules] = useState<SupplierSchedule[]>([]);
@@ -251,6 +274,15 @@ export function SaleScreen({
     return () => clearTimeout(timer);
   }, [message]);
 
+  // `wide` decide si el buscador reducido se enfoca solo (tablet y escritorio).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(min-width: 768px)');
+    const onChange = () => setWide(media.matches);
+    media.addEventListener('change', onChange);
+    return () => media.removeEventListener('change', onChange);
+  }, []);
+
   // Escáner USB activo solo cuando no hay otro modal abierto (F-102).
   const scanningEnabled =
     !paymentOpen &&
@@ -282,7 +314,7 @@ export function SaleScreen({
   }
 
   function pick(product: Product) {
-    if (product.track_stock && product.stock_qty <= 0) {
+    if (isSoldOut(product)) {
       setMessage(`${product.name} está agotado. Avisa al encargado.`);
       return;
     }
@@ -292,6 +324,57 @@ export function SaleScreen({
       setWeightFor({ product });
     }
     beep(880, 70);
+  }
+
+  /** Alterna cuadrícula y vista reducida sin vaciar el ticket (F-113). */
+  function toggleReduced() {
+    const next = reduced ? 'normal' : 'reducida';
+    setReduced(next === 'reducida');
+    saveSaleMode(store.id, next);
+    setReducedView('search');
+    setSelectedProduct(null);
+    setReducedQuery('');
+    setPickSource('search');
+    setView('catalog');
+    setFocusSignal((n) => n + 1);
+  }
+
+  /** Abre el detalle grande; los agotados solo se avisan, no se agregan. */
+  function openReducedProduct(product: Product, source: PickSource) {
+    if (isSoldOut(product)) {
+      setMessage(`${product.name} está agotado. Avisa al encargado.`);
+      return;
+    }
+    setSelectedProduct(product);
+    setPickSource(source);
+    setReducedView('detail');
+    setView('catalog');
+    if (source === 'scan') setReducedQuery('');
+  }
+
+  function backToReducedSearch() {
+    setSelectedProduct(null);
+    setReducedView('search');
+    setFocusSignal((n) => n + 1);
+  }
+
+  function closeReducedCatalog() {
+    setSelectedProduct(null);
+    setReducedView('search');
+    setFocusSignal((n) => n + 1);
+  }
+
+  function addPiecesToCart(product: Product, qty: number) {
+    if (isSoldOut(product)) {
+      setMessage(`${product.name} está agotado. Avisa al encargado.`);
+      return;
+    }
+    mutate(addPieces(cart, product, qty));
+    beep(880, 70);
+    setSelectedProduct(null);
+    setReducedView('search');
+    setFocusSignal((n) => n + 1);
+    setMessage(`${qty} × ${product.name} ${qty === 1 ? 'agregado' : 'agregados'} al ticket.`);
   }
 
   /** Marca o desmarca un producto; la preferencia vive en esta caja. */
@@ -642,6 +725,28 @@ export function SaleScreen({
     }
   }
 
+  // Cada tienda guarda su preferencia: al cambiar de tienda se relee el modo.
+  // Es un ajuste en el render (patrón recomendado por React para estado
+  // derivado de props), no un efecto que provoque renders en cascada.
+  if (modeStoreId !== store.id) {
+    setModeStoreId(store.id);
+    setReduced(loadSaleMode(store.id) === 'reducida');
+    setReducedView('search');
+    setSelectedProduct(null);
+    setReducedQuery('');
+    setPickSource('search');
+  }
+
+  // El detalle se pinta con los datos frescos del catálogo; si el producto
+  // desaparece (se dio de baja), se vuelve al buscador.
+  const freshSelected = selectedProduct
+    ? (products.find((product) => product.id === selectedProduct.id) ?? null)
+    : null;
+  if (selectedProduct && !freshSelected) {
+    setSelectedProduct(null);
+    setReducedView('search');
+  }
+
   return (
     <div className="flex h-dvh flex-col bg-slate-100">
       <header className="z-20 flex-none border-b-2 border-slate-200 bg-white px-3 py-2 shadow-sm xl:px-5 xl:py-3">
@@ -680,10 +785,10 @@ export function SaleScreen({
             </div>
           </div>
 
-          {/* Tres acciones primarias + un panel explícito; una sola fila. */}
+          {/* Cuatro acciones primarias + el panel explícito; una sola fila. */}
           <nav
             aria-label="Acciones del turno"
-            className="grid w-full grid-cols-4 gap-1.5 xl:gap-2 lg:w-[400px] xl:w-[520px]"
+            className="grid w-full grid-cols-5 gap-1.5 xl:gap-2 lg:w-[460px] xl:w-[600px]"
           >
             <button
               type="button"
@@ -719,6 +824,25 @@ export function SaleScreen({
             </button>
             <button
               type="button"
+              onClick={toggleReduced}
+              aria-pressed={reduced}
+              title={
+                reduced ? 'Volver a la cuadrícula' : 'Mostrar el detalle grande del producto'
+              }
+              className={`flex min-h-14 w-full flex-col items-center justify-center gap-0.5 rounded-xl border-2 px-1 py-1 text-base font-black leading-tight shadow-sm transition active:scale-95 xl:py-2 ${
+                reduced
+                  ? 'border-emerald-500 bg-emerald-100 text-emerald-900'
+                  : 'border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <span className="hidden text-xl md:inline xl:text-2xl" aria-hidden="true">
+                👁️
+              </span>
+              <span>Vista</span>
+              <span className="text-sm md:text-base">{reduced ? 'normal' : 'reducida'}</span>
+            </button>
+            <button
+              type="button"
               onClick={() => setMoreOpen(true)}
               aria-haspopup="dialog"
               aria-expanded={moreOpen}
@@ -734,7 +858,7 @@ export function SaleScreen({
         </div>
       </header>
 
-      {lowStock.length > 0 && (
+      {!reduced && lowStock.length > 0 && (
         <div
           role="status"
           className="flex items-center gap-2 bg-amber-100 px-3 py-1.5 text-base font-semibold text-amber-900 xl:px-4 xl:py-2 xl:text-lg"
@@ -771,7 +895,7 @@ export function SaleScreen({
         </div>
       )}
 
-      {cutoffAlerts.length > 0 && (
+      {!reduced && cutoffAlerts.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 bg-orange-100 px-3 py-1.5 text-base font-semibold text-orange-900 xl:px-4 xl:py-2 xl:text-lg">
           <span aria-hidden="true">⏰</span>
           <span>
@@ -784,22 +908,52 @@ export function SaleScreen({
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <section
           aria-label="Catálogo de productos"
+          data-scan-open={scanOpen ? 'true' : undefined}
           className={`min-h-0 w-full flex-col overflow-hidden border-r-2 border-slate-200 bg-slate-50 md:flex md:w-[58%] lg:w-[63%] ${
             view === 'catalog' ? 'flex' : 'hidden'
           }`}
         >
-          <ProductGrid
-            products={products}
-            categories={categories}
-            bestSellers={bestSellers}
-            favorites={favorites}
-            onToggleFavorite={markFavorite}
-            onPick={pick}
-            onNewProduct={() => {
-              setNewBarcode('');
-              setProductFormOpen(true);
-            }}
-          />
+          {reduced ? (
+            <ReducedSalePanel
+              products={products}
+              categories={categories}
+              bestSellers={bestSellers}
+              favorites={favorites}
+              onToggleFavorite={markFavorite}
+              view={reducedView}
+              selectedProduct={freshSelected}
+              source={pickSource}
+              query={reducedQuery}
+              focusSignal={focusSignal}
+              autoFocus={wide}
+              cart={pricedCart}
+              onQueryChange={setReducedQuery}
+              onSelect={openReducedProduct}
+              onBackToSearch={backToReducedSearch}
+              onOpenCatalog={() => setReducedView('catalog')}
+              onCloseCatalog={closeReducedCatalog}
+              onAddPiece={addPiecesToCart}
+              onWeigh={(product) => setWeightFor({ product })}
+              onScan={() => setScanOpen(true)}
+              onNewProduct={(barcode) => {
+                setNewBarcode(barcode ?? '');
+                setProductFormOpen(true);
+              }}
+            />
+          ) : (
+            <ProductGrid
+              products={products}
+              categories={categories}
+              bestSellers={bestSellers}
+              favorites={favorites}
+              onToggleFavorite={markFavorite}
+              onPick={pick}
+              onNewProduct={() => {
+                setNewBarcode('');
+                setProductFormOpen(true);
+              }}
+            />
+          )}
         </section>
 
         <aside
@@ -813,8 +967,8 @@ export function SaleScreen({
               <button
                 type="button"
                 onClick={() => setView('catalog')}
-                aria-label="Volver al catálogo"
-                title="Volver al catálogo"
+                aria-label={reduced ? 'Volver a la venta' : 'Volver al catálogo'}
+                title={reduced ? 'Volver a la venta' : 'Volver al catálogo'}
                 className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-2xl text-slate-700 md:hidden"
               >
                 ←
@@ -986,7 +1140,7 @@ export function SaleScreen({
             onClick={() => setView('cart')}
             className="btn btn-primary min-w-36 text-lg"
           >
-            🛒 Ver carrito
+            {reduced ? '🧾 Ver ticket' : '🛒 Ver carrito'}
           </button>
         </nav>
       )}

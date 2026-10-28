@@ -3,6 +3,7 @@ import type { Category, Product } from '../types/database';
 import { formatMXN } from '../lib/money';
 import { formatStock } from '../lib/weight';
 import { emojiFromIcon, sizeLabel, visualFor } from '../lib/productVisual';
+import { isSoldOut } from '../lib/reducedSale';
 
 /** Categorías visibles antes de ofrecer "Ver más" (tablet, sin gestos). */
 const CATEGORY_LIMIT = 3;
@@ -17,6 +18,8 @@ interface ProductGridProps {
   onToggleFavorite?: (productId: string) => void;
   onPick: (product: Product) => void;
   onNewProduct: () => void;
+  /** `'add'` agrega de un toque; `'detail'` abre el detalle grande (F-113). */
+  pickVerb?: 'add' | 'detail';
 }
 
 /** Cuadrícula táctil de productos con búsqueda, categorías, marcas y más vendidos (F-101, F-103, F-A09). */
@@ -28,6 +31,7 @@ export function ProductGrid({
   onToggleFavorite,
   onPick,
   onNewProduct,
+  pickVerb = 'add',
 }: ProductGridProps) {
   const [query, setQuery] = useState('');
   const [categoryId, setCategoryId] = useState<string | null>(null);
@@ -335,7 +339,7 @@ export function ProductGrid({
                   : product.sale_unit === 'weight'
                     ? `${measureLabel} a granel`
                     : measureLabel;
-              const soldOut = product.track_stock && product.stock_qty <= 0;
+              const soldOut = isSoldOut(product);
               const lowStock =
                 product.track_stock &&
                 product.stock_qty > 0 &&
@@ -357,13 +361,15 @@ export function ProductGrid({
                     aria-label={
                       soldOut
                         ? `${product.name} agotado`
-                        : `Agregar ${product.name}, ${formatMXN(product.price_cents)} ${
-                            product.sale_unit === 'piece'
-                              ? 'por pieza'
-                              : product.sale_unit === 'volume'
-                                ? 'por litro'
-                                : 'por kilo'
-                          }`
+                        : pickVerb === 'detail'
+                          ? `Ver detalle de ${product.name}, ${formatMXN(product.price_cents)}`
+                          : `Agregar ${product.name}, ${formatMXN(product.price_cents)} ${
+                              product.sale_unit === 'piece'
+                                ? 'por pieza'
+                                : product.sale_unit === 'volume'
+                                  ? 'por litro'
+                                  : 'por kilo'
+                            }`
                     }
                     className={`absolute inset-0 z-10 rounded-2xl focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-emerald-200 xl:rounded-3xl ${
                       soldOut ? 'cursor-not-allowed' : ''
