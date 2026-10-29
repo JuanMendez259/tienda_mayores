@@ -31,6 +31,19 @@ personas de la tercera edad. Stack: **React + Vite + TypeScript + Tailwind CSS v
 - **F-704 (hardware):** **Menú → Diagnóstico → Dispositivos** muestra el último código del
   escáner, prueba de impresora y prueba de cámara.
 
+## Vista reducida (F-113)
+
+- **Quinto botón Vista** en la cabecera para alternar **Vista reducida** / **Vista normal** sin
+  menús y sin vaciar el ticket. La preferencia se guarda por tienda/dispositivo.
+- La entrada es un buscador por **nombre o código** con **📷 Escanear código** y
+  **🗂️ Ver catálogo**; no hay detalle de entrada: se llega buscando, escaneando o desde el
+  catálogo secundario. El detalle muestra el
+  producto en grande, existencias y **Cantidad a agregar** antes de **Agregar N al ticket**; peso
+  y volumen abren el mismo `WeightModal` con **⚖️ Pesar y agregar** o **🧪 Medir y agregar**.
+- **🗂️ Ver catálogo** abre la cuadrícula como superficie secundaria: tocar un producto abre su
+  detalle y **no** lo agrega. En tablet el ticket sigue visible; en teléfono se llega con
+  **🧾 Ver ticket** y se regresa con el botón **←** (**Volver a la venta**).
+
 ## Novedades de la Fase 3 (Control)
 
 - **F-407:** **promociones** por producto (2×1 o descuento por cantidad) en **Menú → Promociones**;
