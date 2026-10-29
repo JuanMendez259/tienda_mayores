@@ -70,9 +70,9 @@ export function ReducedSalePanel({
             type="button"
             onClick={onCloseCatalog}
             aria-label="Volver a la búsqueda"
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border-2 border-slate-300 bg-white text-2xl text-slate-700 shadow-sm transition hover:bg-slate-100 active:scale-95"
+            className="flex min-h-14 shrink-0 items-center gap-2 rounded-xl border-2 border-slate-300 bg-white px-4 text-lg font-extrabold text-slate-700 shadow-sm transition hover:bg-slate-100 active:scale-95"
           >
-            ←
+            <span aria-hidden="true">←</span> Volver
           </button>
           <span className="text-xl font-black text-slate-900">Catálogo</span>
         </div>

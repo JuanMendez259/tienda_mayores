@@ -48,6 +48,7 @@ import { PAYMENT_METHOD_LABELS } from '../devices/payments';
 import { ProductGrid } from './ProductGrid';
 import { ReducedSalePanel } from './ReducedSalePanel';
 import { Cart } from './Cart';
+import { BarcodeScannerModal } from './BarcodeScannerModal';
 import { WeightModal } from './WeightModal';
 import { PaymentModal } from './PaymentModal';
 import { TicketModal, type TicketData } from './TicketModal';
@@ -120,6 +121,8 @@ export function SaleScreen({
   const [askLogout, setAskLogout] = useState(false);
   const [productFormOpen, setProductFormOpen] = useState(false);
   const [newBarcode, setNewBarcode] = useState('');
+  /** El alta abierta vino de un código escaneado que aún no existe. */
+  const [newProductFromScan, setNewProductFromScan] = useState(false);
   const [held, setHeld] = useState<SaleWithItems[]>([]);
   const [heldOpen, setHeldOpen] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -139,7 +142,7 @@ export function SaleScreen({
   const [wide, setWide] = useState(() =>
     typeof window !== 'undefined' ? window.matchMedia('(min-width: 768px)').matches : true,
   );
-  /** El modal del escáner de cámara llega en la tarea 6; aquí solo se marca. */
+  /** Modal del escáner de cámara de la vista reducida (F-102, F-113). */
   const [scanOpen, setScanOpen] = useState(false);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [customerBalances, setCustomerBalances] = useState<Record<string, number>>({});
@@ -288,6 +291,7 @@ export function SaleScreen({
     !paymentOpen &&
     !weightFor &&
     !productFormOpen &&
+    !scanOpen &&
     !discountOpen &&
     !discountAuthOpen &&
     !heldOpen &&
@@ -419,28 +423,52 @@ export function SaleScreen({
     );
   }
 
-  /** Escáner USB (F-102): agrega el producto o abre el alta con el código. */
+  /**
+   * Escáner USB y de cámara (F-102): en vista normal agrega de un toque; en
+   * vista reducida abre el detalle con la consulta limpia (F-113). Un código
+   * desconocido abre el alta con el código ya escrito.
+   */
   function handleScan(code: string) {
     const product = products.find((item) => item.barcode === code);
     if (product) {
+      if (isSoldOut(product)) {
+        setMessage(`${product.name} está agotado. Avisa al encargado.`);
+        return;
+      }
+      if (reduced) {
+        setReducedQuery('');
+        openReducedProduct(product, 'scan');
+        setMessage(`${product.name} listo. Confirma la cantidad.`);
+        return;
+      }
       pick(product);
       setMessage(`${product.name} agregado.`);
       return;
     }
     setNewBarcode(code);
+    setNewProductFromScan(true);
     setProductFormOpen(true);
     setMessage('Código no registrado: captura el producto nuevo.');
   }
 
   function confirmWeight(measure: number) {
     if (!weightFor) return;
-    if (weightFor.key) {
-      mutate(setMeasure(cart, weightFor.key, measure));
+    const target = weightFor;
+    if (target.key) {
+      mutate(setMeasure(cart, target.key, measure));
     } else {
-      mutate(addMeasure(cart, weightFor.product, measure));
+      mutate(addMeasure(cart, target.product, measure));
     }
     setWeightFor(null);
     beep(880, 70);
+    // En vista reducida, pesar cierra el ciclo y regresa al buscador.
+    if (reduced && !target.key) {
+      const unit = target.product.sale_unit === 'volume' ? 'volume' : 'weight';
+      setSelectedProduct(null);
+      setReducedView('search');
+      setFocusSignal((n) => n + 1);
+      setMessage(`${formatMeasure(measure, unit)} de ${target.product.name} agregado al ticket.`);
+    }
   }
 
   function applyLineDiscount(key: string, cents: number) {
@@ -907,8 +935,7 @@ export function SaleScreen({
       {/* En tablet horizontal se ven catálogo (63%) y ticket (37%) a la vez. */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
         <section
-          aria-label="Catálogo de productos"
-          data-scan-open={scanOpen ? 'true' : undefined}
+          aria-label={reduced ? 'Venta y detalle de producto' : 'Catálogo de productos'}
           className={`min-h-0 w-full flex-col overflow-hidden border-r-2 border-slate-200 bg-slate-50 md:flex md:w-[58%] lg:w-[63%] ${
             view === 'catalog' ? 'flex' : 'hidden'
           }`}
@@ -1231,6 +1258,16 @@ export function SaleScreen({
         />
       )}
 
+      {scanOpen && (
+        <BarcodeScannerModal
+          onDetected={(code) => {
+            setScanOpen(false);
+            handleScan(code);
+          }}
+          onClose={() => setScanOpen(false)}
+        />
+      )}
+
       {paymentOpen && (
         <PaymentModal
           totalCents={total}
@@ -1298,12 +1335,18 @@ export function SaleScreen({
           onClose={() => {
             setProductFormOpen(false);
             setNewBarcode('');
+            setNewProductFromScan(false);
           }}
           onSaved={(product) => {
+            const fromScan = newProductFromScan;
             setProductFormOpen(false);
             setNewBarcode('');
+            setNewProductFromScan(false);
             onRefreshProducts();
             setMessage(`Producto "${product.name}" guardado.`);
+            if (reduced) {
+              openReducedProduct(product, fromScan ? 'scan' : 'search');
+            }
           }}
         />
       )}
