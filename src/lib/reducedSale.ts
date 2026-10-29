@@ -35,3 +35,21 @@ export function searchProducts(products: readonly Product[], query: string): Pro
 export function looksLikeBarcode(text: string): boolean {
   return /^\d{6,}$/.test(text.trim());
 }
+
+/**
+ * Resuelve el producto que se pinta en el detalle grande.
+ *
+ * Mientras el catálogo no trae el producto recién guardado (`pendingId`), se
+ * usa la copia que devolvió el alta. Si el producto ya estaba en el catálogo y
+ * desaparece, devuelve null para que el detalle se cierre y vuelva al buscador.
+ */
+export function resolveDetailProduct(
+  selected: Product | null,
+  products: readonly Product[],
+  pendingId: string | null,
+): Product | null {
+  if (!selected) return null;
+  const fresh = products.find((product) => product.id === selected.id);
+  if (fresh) return fresh;
+  return selected.id === pendingId ? selected : null;
+}

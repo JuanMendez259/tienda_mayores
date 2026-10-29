@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  isSoldOut, looksLikeBarcode, maxPieceQuantity, pieceQtyInCart, searchProducts,
+  isSoldOut, looksLikeBarcode, maxPieceQuantity, pieceQtyInCart, resolveDetailProduct,
+  searchProducts,
 } from './reducedSale';
 import { pieceFromProduct, measureFromProduct } from './cart';
 import { seedProducts } from '../data/seed';
@@ -43,5 +44,19 @@ describe('helpers de vista reducida', () => {
     expect(looksLikeBarcode('7501234567890')).toBe(true);
     expect(looksLikeBarcode('12345')).toBe(false);
     expect(looksLikeBarcode('arroz')).toBe(false);
+  });
+
+  it('sostiene el detalle del producto recién guardado hasta que llega el catálogo', () => {
+    const saved = { ...arroz, id: 'prd-nuevo', name: 'Producto nuevo', stock_qty: 5 };
+
+    // El refresco todavía no trae el producto: se usa la copia del alta.
+    expect(resolveDetailProduct(saved, seedProducts, saved.id)).toBe(saved);
+
+    // El producto ya está en el catálogo: manda la copia fresca.
+    const refreshed = { ...saved, name: 'Producto nuevo actualizado' };
+    expect(resolveDetailProduct(saved, [...seedProducts, refreshed], saved.id)).toEqual(refreshed);
+
+    // Ya no está pendiente y tampoco en el catálogo: el detalle debe cerrarse.
+    expect(resolveDetailProduct(saved, seedProducts, null)).toBeNull();
   });
 });

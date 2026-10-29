@@ -41,7 +41,7 @@ import { enqueueSale } from '../lib/offlineQueue';
 import { logError } from '../lib/errorLog';
 import { useModalA11y } from '../lib/useModalA11y';
 import { usePendingSales } from '../lib/usePendingSales';
-import { isSoldOut } from '../lib/reducedSale';
+import { isSoldOut, resolveDetailProduct } from '../lib/reducedSale';
 import { loadSaleMode, saveSaleMode } from '../lib/saleMode';
 import { useBarcodeScanner } from '../devices/barcode';
 import { PAYMENT_METHOD_LABELS } from '../devices/payments';
@@ -137,6 +137,8 @@ export function SaleScreen({
   const [reducedView, setReducedView] = useState<ReducedView>('search');
   const [reducedQuery, setReducedQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  /** Producto recién guardado que aún no aparece en el catálogo refrescado. */
+  const [pendingSavedProductId, setPendingSavedProductId] = useState<string | null>(null);
   const [pickSource, setPickSource] = useState<PickSource>('search');
   const [focusSignal, setFocusSignal] = useState(0);
   const [wide, setWide] = useState(() =>
@@ -343,8 +345,11 @@ export function SaleScreen({
     setFocusSignal((n) => n + 1);
   }
 
-  /** Abre el detalle grande; los agotados solo se avisan, no se agregan. */
-  function openReducedProduct(product: Product, source: PickSource) {
+  /**
+   * Abre el detalle grande; los agotados solo se avisan, no se agregan.
+   * `fromSave` conserva la copia del alta hasta que el catálogo la incluya.
+   */
+  function openReducedProduct(product: Product, source: PickSource, fromSave = false) {
     if (isSoldOut(product)) {
       setMessage(`${product.name} está agotado. Avisa al encargado.`);
       return;
@@ -353,6 +358,7 @@ export function SaleScreen({
     setPickSource(source);
     setReducedView('detail');
     setView('catalog');
+    setPendingSavedProductId(fromSave ? product.id : null);
     if (source === 'scan') setReducedQuery('');
   }
 
@@ -766,13 +772,25 @@ export function SaleScreen({
   }
 
   // El detalle se pinta con los datos frescos del catálogo; si el producto
-  // desaparece (se dio de baja), se vuelve al buscador.
-  const freshSelected = selectedProduct
-    ? (products.find((product) => product.id === selectedProduct.id) ?? null)
-    : null;
+  // desaparece (se dio de baja), se vuelve al buscador. El producto recién
+  // guardado se sostiene con su copia hasta que llegue el refresco.
+  const freshSelected = resolveDetailProduct(
+    selectedProduct,
+    products,
+    pendingSavedProductId,
+  );
   if (selectedProduct && !freshSelected) {
     setSelectedProduct(null);
     setReducedView('search');
+    setPendingSavedProductId(null);
+  }
+  // Cuando el catálogo ya trae el producto guardado (o se cerró el detalle),
+  // la copia pendiente deja de ser necesaria.
+  if (
+    pendingSavedProductId &&
+    (!selectedProduct || products.some((product) => product.id === pendingSavedProductId))
+  ) {
+    setPendingSavedProductId(null);
   }
 
   return (
@@ -1345,7 +1363,7 @@ export function SaleScreen({
             onRefreshProducts();
             setMessage(`Producto "${product.name}" guardado.`);
             if (reduced) {
-              openReducedProduct(product, fromScan ? 'scan' : 'search');
+              openReducedProduct(product, fromScan ? 'scan' : 'search', true);
             }
           }}
         />

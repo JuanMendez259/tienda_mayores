@@ -198,6 +198,31 @@ test.describe('vista reducida', () => {
     await expect(page.getByLabel('Código de barras (opcional)')).toHaveValue(code);
   });
 
+  test('el alta desde un escaneo desconocido abre el detalle del producto guardado', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet', 'solo aplica a la tablet');
+    const code = '9999999999999';
+    await simularCamaraConCodigo(page, code);
+    await entrarAVenta(page);
+    await activarVistaReducida(page);
+
+    await page.getByRole('button', { name: /Escanear código/ }).click();
+    await expect(page.getByRole('heading', { name: 'Nuevo producto' })).toBeVisible();
+    await expect(page.getByLabel('Código de barras (opcional)')).toHaveValue(code);
+
+    await page.getByLabel('Nombre', { exact: true }).fill('Producto escaneado');
+    await page.getByLabel('Precio por pieza').fill('12.50');
+    await page.getByLabel('Piezas en bodega').fill('4');
+    await page.getByRole('button', { name: 'Guardar producto' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Producto escaneado' })).toBeVisible();
+    await expect(page.getByText('Escaneado', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('complementary', { name: 'Ticket de venta' }).getByText('0 productos'),
+    ).toBeVisible();
+  });
+
   test('pesar y agregar un producto por peso vuelve al buscador con el ticket', async ({
     page,
   }, testInfo) => {
