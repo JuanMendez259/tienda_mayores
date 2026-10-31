@@ -12,7 +12,8 @@ personas de la tercera edad. Stack: **React + Vite + TypeScript + Tailwind CSS v
 
 - **F-102 / 8.5 — Escáner USB:** el sistema escucha el teclado y distingue un escaneo de un
   tecleo humano por la velocidad; al leer un código agrega el producto o abre **Nuevo producto**
-  con el código ya lleno. No roba el foco de los campos de texto.
+  con el código ya lleno. En la vista reducida (F-113) un código conocido abre el detalle en
+  lugar de agregar. No roba el foco de los campos de texto.
 - **F-301 / 8.3 — Impresora térmica:** botón **🖨 Imprimir ticket** en el ticket, con hoja de
   impresión para papel de **58 mm u 80 mm** (configurable en **Menú → Configuración**). En
   **Diagnóstico** hay **Imprimir prueba**.
@@ -37,9 +38,11 @@ personas de la tercera edad. Stack: **React + Vite + TypeScript + Tailwind CSS v
   menús y sin vaciar el ticket. La preferencia se guarda por tienda/dispositivo.
 - La entrada es un buscador por **nombre o código** con **📷 Escanear código** y
   **🗂️ Ver catálogo**; no hay detalle de entrada: se llega buscando, escaneando o desde el
-  catálogo secundario. El detalle muestra el
+  catálogo secundario. Los agotados no se abren: muestran el aviso. El detalle muestra el
   producto en grande, existencias y **Cantidad a agregar** antes de **Agregar N al ticket**; peso
-  y volumen abren el mismo `WeightModal` con **⚖️ Pesar y agregar** o **🧪 Medir y agregar**.
+  y volumen abren el mismo `WeightModal` con **⚖️ Pesar y agregar** o **🧪 Medir y agregar**. Un
+  producto recién guardado abre su detalle aunque quede sin stock, en lectura con el CTA
+  deshabilitado.
 - **🗂️ Ver catálogo** abre la cuadrícula como superficie secundaria: tocar un producto abre su
   detalle y **no** lo agrega. En tablet el ticket sigue visible; en teléfono se llega con
   **🧾 Ver ticket** y se regresa con el botón **←** (**Volver a la venta**).

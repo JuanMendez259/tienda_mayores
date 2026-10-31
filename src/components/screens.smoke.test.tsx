@@ -68,7 +68,8 @@ describe('render de pantallas (smoke)', () => {
         products={seedProducts}
         categories={seedCategories}
         promotionsKey={0}
-        onRefreshProducts={noop}
+        onRefreshProducts={async () => null}
+        onProductSaved={noop}
         onOpenCash={noop}
         onOpenAdmin={noop}
         onLogout={noop}

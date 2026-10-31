@@ -41,6 +41,24 @@ async function crearProductoPorPieza(
   await expect(page.getByRole('article').filter({ hasText: name })).toBeVisible();
 }
 
+/** Da de alta un producto por pieza con stock 0 (el valor por defecto). */
+async function crearProductoAgotado(page: Page, name: string) {
+  await page.getByRole('button', { name: /Nuevo/ }).click();
+  await expect(page.getByRole('heading', { name: 'Nuevo producto' })).toBeVisible();
+  await page.getByLabel('Nombre', { exact: true }).fill(name);
+  await page.getByLabel('Precio por pieza').fill('10.00');
+  // "Piezas en bodega" queda en 0: es el valor por defecto del formulario.
+  await page.getByRole('button', { name: 'Guardar producto' }).click();
+  await expect(page.getByRole('heading', { name: 'Nuevo producto' })).toBeHidden();
+}
+
+/** Espera el puente solo de desarrollo que expone repositorio y refresco. */
+async function esperarPuenteDePrueba(page: Page) {
+  await page.waitForFunction(
+    () => Boolean((window as unknown as { __posTest?: unknown }).__posTest),
+  );
+}
+
 async function activarVistaReducida(page: Page) {
   await page.getByRole('button', { name: /Vista reducida/ }).click();
   await expect(page.getByRole('heading', { name: '¿Qué vas a vender?' })).toBeVisible();
@@ -145,6 +163,36 @@ test.describe('vista reducida', () => {
     ).toBeVisible();
   });
 
+  test('cambiar de vista no vacía el ticket', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet', 'solo aplica a la tablet');
+    await entrarAVenta(page);
+    await page.getByRole('button', { name: /^Agregar Arroz 1 kg,/ }).click();
+    const ticket = page.getByRole('complementary', { name: 'Ticket de venta' });
+    await expect(ticket.getByText('1 producto')).toBeVisible();
+
+    await page.getByRole('button', { name: /Vista reducida/ }).click();
+    await expect(page.getByRole('heading', { name: '¿Qué vas a vender?' })).toBeVisible();
+    await expect(ticket.getByText('1 producto')).toBeVisible();
+
+    await page.getByRole('button', { name: /Vista normal/ }).click();
+    await expect(page.locator('article').first()).toBeVisible();
+    await expect(ticket.getByText('1 producto')).toBeVisible();
+  });
+
+  test('un agotado no se abre desde la búsqueda', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet', 'solo aplica a la tablet');
+    await entrarAVenta(page);
+    await crearProductoAgotado(page, 'Producto sin stock');
+    await activarVistaReducida(page);
+
+    const search = page.getByLabel('Buscar producto por nombre o código');
+    await search.fill('sin stock');
+    const row = page.getByRole('button', { name: /Producto sin stock/ });
+    await expect(row).toBeDisabled();
+    await expect(row).toContainText('Agotado');
+    await expect(page.getByRole('heading', { name: '¿Qué vas a vender?' })).toBeVisible();
+  });
+
   test('el escaneo USB limpia la consulta y abre el detalle', async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'tablet', 'solo aplica a la tablet');
     const code = '7501234567890';
@@ -218,6 +266,92 @@ test.describe('vista reducida', () => {
 
     await expect(page.getByRole('heading', { name: 'Producto escaneado' })).toBeVisible();
     await expect(page.getByText('Escaneado', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('complementary', { name: 'Ticket de venta' }).getByText('0 productos'),
+    ).toBeVisible();
+  });
+
+  test('el alta escaneada con stock 0 abre el detalle en lectura', async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet', 'solo aplica a la tablet');
+    const code = '8888888888888';
+    await simularCamaraConCodigo(page, code);
+    await entrarAVenta(page);
+    await activarVistaReducida(page);
+
+    await page.getByRole('button', { name: /Escanear código/ }).click();
+    await expect(page.getByRole('heading', { name: 'Nuevo producto' })).toBeVisible();
+    await page.getByLabel('Nombre', { exact: true }).fill('Producto sin existencias');
+    await page.getByLabel('Precio por pieza').fill('9.00');
+    // "Piezas en bodega" queda en 0: es el valor por defecto del formulario.
+    await page.getByRole('button', { name: 'Guardar producto' }).click();
+
+    await expect(page.getByText('Producto "Producto sin existencias" guardado.')).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Producto sin existencias' })).toBeVisible();
+    await expect(
+      page.getByText(
+        'Este producto no tiene existencias. Edítalo en el catálogo para poder venderlo.',
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Agotado', exact: true })).toBeDisabled();
+    await expect(
+      page.getByRole('complementary', { name: 'Ticket de venta' }).getByText('0 productos'),
+    ).toBeVisible();
+  });
+
+  test('una respuesta vieja del catálogo no cierra el detalle recién guardado', async ({
+    page,
+  }, testInfo) => {
+    test.skip(testInfo.project.name !== 'tablet', 'solo aplica a la tablet');
+    const code = '7777777777777';
+    await simularCamaraConCodigo(page, code);
+    await entrarAVenta(page);
+    await activarVistaReducida(page);
+    await esperarPuenteDePrueba(page);
+
+    // Retén un refresco viejo (sin el producto) y libera después el refresco
+    // nuevo que dispara el alta. El detalle no debe cerrarse al llegar el viejo.
+    await page.evaluate(() => {
+      const bridge = (
+        window as unknown as {
+          __posTest: {
+            repository: { listProducts: () => Promise<unknown[]> };
+            refreshProducts: () => Promise<unknown[] | null>;
+          };
+        }
+      ).__posTest;
+      const original = bridge.repository.listProducts.bind(bridge.repository);
+      let release = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      let first = true;
+      bridge.repository.listProducts = async () => {
+        const snapshot = await original();
+        if (first) {
+          first = false;
+          await gate;
+        }
+        return snapshot;
+      };
+      (window as unknown as { __releaseStaleProducts: () => void }).__releaseStaleProducts =
+        release;
+      void bridge.refreshProducts();
+    });
+
+    await page.getByRole('button', { name: /Escanear código/ }).click();
+    await expect(page.getByRole('heading', { name: 'Nuevo producto' })).toBeVisible();
+    await page.getByLabel('Nombre', { exact: true }).fill('Producto con refresco lento');
+    await page.getByLabel('Precio por pieza').fill('15.00');
+    await page.getByLabel('Piezas en bodega').fill('3');
+    await page.getByRole('button', { name: 'Guardar producto' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Producto con refresco lento' })).toBeVisible();
+
+    await page.evaluate(() => {
+      (window as unknown as { __releaseStaleProducts: () => void }).__releaseStaleProducts();
+    });
+
+    await expect(page.getByRole('heading', { name: 'Producto con refresco lento' })).toBeVisible();
     await expect(
       page.getByRole('complementary', { name: 'Ticket de venta' }).getByText('0 productos'),
     ).toBeVisible();
@@ -305,5 +439,9 @@ test.describe('vista reducida', () => {
       Number.parseFloat(getComputedStyle(element).fontSize),
     );
     expect(precioPx, 'precio del detalle >= 24 px').toBeGreaterThanOrEqual(24);
+
+    await page.getByRole('button', { name: /Agregar 1 al ticket/ }).click();
+    await expect(page.getByRole('heading', { name: '¿Qué vas a vender?' })).toBeVisible();
+    await expect(search).not.toBeFocused();
   });
 });

@@ -135,6 +135,12 @@ export function ProductDetail({
           </p>
         )}
 
+        {soldOut && (
+          <p className="rounded-xl bg-red-50 px-3 py-2 text-base font-bold text-red-800">
+            Este producto no tiene existencias. Edítalo en el catálogo para poder venderlo.
+          </p>
+        )}
+
         {isPiece && !soldOut && (
           <div>
             <p className="mb-1 text-base font-bold text-slate-600">Cantidad a agregar</p>

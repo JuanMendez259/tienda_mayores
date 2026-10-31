@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { AppUser, CashSession, Category, Product, Store } from './types/database';
 import { repository, isRemoteConfigured } from './data';
 import { LoginScreen } from './components/LoginScreen';
@@ -34,6 +34,8 @@ function App() {
   const [promotionsKey, setPromotionsKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(navigator.onLine);
+  /** Descarta respuestas de catálogo que llegan después de una petición más nueva. */
+  const refreshSeq = useRef(0);
 
   useEffect(() => {
     if (!store) return;
@@ -82,10 +84,56 @@ function App() {
     setProducts(loadedProducts);
   }, []);
 
-  const refreshProducts = useCallback(() => {
-    void repository.listProducts().then(setProducts);
-    void repository.listCategories().then(setCategories);
+  /**
+   * Refresca catálogo y categorías sin dejar que una respuesta vieja pise a
+   * una más nueva. Devuelve la lista aplicada, o `null` si la respuesta se
+   * descartó o falló (el llamador no debe usarla como confirmación).
+   */
+  const refreshProducts = useCallback(async (): Promise<Product[] | null> => {
+    const requestId = refreshSeq.current + 1;
+    refreshSeq.current = requestId;
+    try {
+      const [loadedCategories, loadedProducts] = await Promise.all([
+        repository.listCategories(),
+        repository.listProducts(),
+      ]);
+      if (requestId !== refreshSeq.current) return null;
+      setCategories(loadedCategories);
+      setProducts(loadedProducts);
+      return loadedProducts;
+    } catch (cause) {
+      logError(cause, 'refresh-products');
+      return null;
+    }
   }, []);
+
+  /** Inserta o reemplaza un producto sin esperar al refresco del catálogo. */
+  const upsertProduct = useCallback((product: Product) => {
+    setProducts((current) => {
+      const index = current.findIndex((item) => item.id === product.id);
+      if (index === -1) return [...current, product];
+      const next = [...current];
+      next[index] = product;
+      return next;
+    });
+  }, []);
+
+  // Puente solo de desarrollo para las pruebas E2E de respuestas fuera de
+  // orden. En el build de producción `import.meta.env.DEV` es false y el
+  // bloque desaparece.
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    const testWindow = globalThis as unknown as {
+      __posTest?: {
+        repository: typeof repository;
+        refreshProducts: typeof refreshProducts;
+      };
+    };
+    testWindow.__posTest = { repository, refreshProducts };
+    return () => {
+      delete testWindow.__posTest;
+    };
+  }, [refreshProducts]);
 
   // Al recuperar la conexión, enviar las ventas pendientes y refrescar el catálogo (F-704).
   useEffect(() => {
@@ -94,7 +142,7 @@ function App() {
       try {
         const result = await flushPendingSales();
         if (result.sent > 0) {
-          refreshProducts();
+          void refreshProducts();
         }
       } catch (cause) {
         logError(cause, 'sync-effect');
@@ -211,6 +259,7 @@ function App() {
             categories={categories}
             promotionsKey={promotionsKey}
             onRefreshProducts={refreshProducts}
+            onProductSaved={upsertProduct}
             onOpenCash={() => setCashPanelOpen(true)}
             onOpenAdmin={() => setAdminOpen(true)}
             onLogout={handleLogout}

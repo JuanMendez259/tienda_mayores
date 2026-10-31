@@ -27,7 +27,8 @@ export function searchProducts(products: readonly Product[], query: string): Pro
   const term = query.trim().toLowerCase();
   if (!term) return [];
   return products.filter(
-    (p) => p.name.toLowerCase().includes(term) || (p.barcode ?? '').includes(term),
+    (p) =>
+      p.name.toLowerCase().includes(term) || (p.barcode ?? '').toLowerCase().includes(term),
   );
 }
 

@@ -78,7 +78,9 @@ interface SaleScreenProps {
   categories: Category[];
   /** Cambia cuando se actualizan promociones, para recargarlas (F-407). */
   promotionsKey: number;
-  onRefreshProducts: () => void;
+  onRefreshProducts: () => Promise<Product[] | null>;
+  /** Inserta el producto recién guardado sin esperar al refresco. */
+  onProductSaved: (product: Product) => void;
   onOpenCash: () => void;
   onOpenAdmin: () => void;
   onLogout: () => void;
@@ -104,6 +106,7 @@ export function SaleScreen({
   categories,
   promotionsKey,
   onRefreshProducts,
+  onProductSaved,
   onOpenCash,
   onOpenAdmin,
   onLogout,
@@ -350,7 +353,10 @@ export function SaleScreen({
    * `fromSave` conserva la copia del alta hasta que el catálogo la incluya.
    */
   function openReducedProduct(product: Product, source: PickSource, fromSave = false) {
-    if (isSoldOut(product)) {
+    // Un producto recién guardado se abre aunque haya quedado sin stock: el
+    // cajero necesita ver lo que acaba de crear. La regla de agotados sigue
+    // aplicando al descubrimiento (búsqueda, catálogo y escaneo).
+    if (isSoldOut(product) && !fromSave) {
       setMessage(`${product.name} está agotado. Avisa al encargado.`);
       return;
     }
@@ -784,12 +790,10 @@ export function SaleScreen({
     setReducedView('search');
     setPendingSavedProductId(null);
   }
-  // Cuando el catálogo ya trae el producto guardado (o se cerró el detalle),
-  // la copia pendiente deja de ser necesaria.
-  if (
-    pendingSavedProductId &&
-    (!selectedProduct || products.some((product) => product.id === pendingSavedProductId))
-  ) {
+  // Al cerrar el detalle la copia pendiente deja de ser necesaria. No se
+  // limpia porque el upsert local ya incluya el producto: eso no confirma que
+  // el catálogo lo tenga; la confirmación llega con un refresco aplicado.
+  if (pendingSavedProductId && !selectedProduct) {
     setPendingSavedProductId(null);
   }
 
@@ -1360,11 +1364,16 @@ export function SaleScreen({
             setProductFormOpen(false);
             setNewBarcode('');
             setNewProductFromScan(false);
-            onRefreshProducts();
+            onProductSaved(product);
             setMessage(`Producto "${product.name}" guardado.`);
             if (reduced) {
               openReducedProduct(product, fromScan ? 'scan' : 'search', true);
             }
+            void onRefreshProducts().then((applied) => {
+              if (applied?.some((item) => item.id === product.id)) {
+                setPendingSavedProductId((current) => (current === product.id ? null : current));
+              }
+            });
           }}
         />
       )}

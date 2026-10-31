@@ -36,6 +36,8 @@ describe('helpers de vista reducida', () => {
     expect(searchProducts(seedProducts, 'ARROZ').map((p) => p.id)).toContain('prd-arroz');
     const temporal = { ...arroz, id: 'prd-temp', name: 'Arroz especial', barcode: '7501234567890' };
     expect(searchProducts([temporal, ...seedProducts], '7501234567890').map((p) => p.id)).toEqual(['prd-temp']);
+    const alfanumerico = { ...arroz, id: 'prd-alfa', name: 'Refresco', barcode: 'ABC123' };
+    expect(searchProducts([alfanumerico], 'abc123').map((p) => p.id)).toEqual(['prd-alfa']);
     expect(searchProducts(seedProducts, '   ')).toEqual([]);
     expect(searchProducts(seedProducts, 'no-existe')).toEqual([]);
   });
